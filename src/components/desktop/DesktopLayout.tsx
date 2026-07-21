@@ -35,15 +35,19 @@ export default function DesktopLayout() {
 
   useEffect(() => {
     // 1. Tạo node cơ bản
-    const rawNodes: Node[] = kinNodes.map((kn) => ({
-      id: kn.id,
-      position: { x: 0, y: 0 }, // Dagre sẽ ghi đè toạ độ này
-      type: 'custom',
-      data: { 
-        kinshipNode: kn,
-        ...nodeDataFunctions
-      },
-    }));
+    const rawNodes: Node[] = kinNodes.map((kn) => {
+      const childrenRels = kinNodes.filter(c => c.parentId === kn.id).map(c => c.relation);
+      return {
+        id: kn.id,
+        position: { x: 0, y: 0 }, // Dagre sẽ ghi đè toạ độ này
+        type: 'custom',
+        data: { 
+          kinshipNode: kn,
+          childrenRelations: childrenRels,
+          ...nodeDataFunctions
+        },
+      };
+    });
 
     // 2. Tạo edge cơ bản
     const rawEdges: Edge[] = kinNodes

@@ -26,15 +26,16 @@ export type KinshipNode = {
   label: string;
   chain: string;
   term: RegionalTerm | null;
+  gender: 'MALE' | 'FEMALE' | 'UNKNOWN';
 };
 
 export function useKinshipTree() {
   const [nodes, setNodes] = useState<KinshipNode[]>([
-    { id: 'root', parentId: null, relation: 'root', label: 'Tôi', chain: '', term: null }
+    { id: 'root', parentId: null, relation: 'root', label: 'Tôi', chain: '', term: null, gender: 'UNKNOWN' }
   ]);
   const [isLoading, setIsLoading] = useState(false);
 
-  const addRelation = useCallback(async (parentId: string, newRelation: RelationType) => {
+  const addRelation = useCallback(async (parentId: string, newRelation: string) => {
     setIsLoading(true);
     setNodes(prevNodes => {
       const parentNode = prevNodes.find(n => n.id === parentId);
@@ -43,6 +44,12 @@ export function useKinshipTree() {
       const newChain = parentNode.chain ? `${parentNode.chain}.${newRelation}` : newRelation;
       const newNodeId = `${parentId}-${newRelation}-${Date.now()}`;
       
+      const fallbackLabel = parentNode.id !== 'root' 
+        ? `${RELATION_LABELS[newRelation as RelationType]} của ${parentNode.label}` 
+        : RELATION_LABELS[newRelation as RelationType];
+
+      const newGender = GENDER_MAP[newRelation as RelationType];
+
       // Khởi tạo node tạm thời chưa có danh xưng
       const newNode: KinshipNode = {
         id: newNodeId,
@@ -51,13 +58,14 @@ export function useKinshipTree() {
         label: 'Đang tính...',
         chain: newChain,
         term: null,
+        gender: newGender,
       };
 
       // Chạy tính toán async bên ngoài setNodes
       getKinshipTerm(newChain).then(term => {
         setNodes(current => current.map(n => 
           n.id === newNodeId 
-            ? { ...n, term, label: term ? term.north : RELATION_LABELS[newRelation] } 
+            ? { ...n, term, label: term ? term.north : fallbackLabel } 
             : n
         ));
         setIsLoading(false);
@@ -97,7 +105,13 @@ export function useKinshipTree() {
       // Fetch new term
       const term = await getKinshipTerm(node.chain);
       node.term = term;
-      node.label = term ? term.north : (node.relation === 'root' ? 'Tôi' : RELATION_LABELS[node.relation as RelationType]);
+
+      const fallbackLabel = parent && parent.id !== 'root' 
+        ? `${RELATION_LABELS[node.relation as RelationType]} của ${parent.label}` 
+        : RELATION_LABELS[node.relation as RelationType];
+
+      node.label = term ? term.north : (node.relation === 'root' ? 'Tôi' : fallbackLabel);
+      node.gender = GENDER_MAP[node.relation as RelationType];
       
       tempNodes[idx] = node;
 
