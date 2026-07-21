@@ -35,36 +35,100 @@ export function useKinshipTree() {
   const [isLoading, setIsLoading] = useState(false);
 
   const addRelation = useCallback(async (parentId: string, newRelation: RelationType) => {
-    const parentNode = nodes.find(n => n.id === parentId);
-    if (!parentNode) return null;
-
-    const newChain = parentNode.chain ? `${parentNode.chain}.${newRelation}` : newRelation;
-    
     setIsLoading(true);
-    const term = await getKinshipTerm(newChain);
-    setIsLoading(false);
+    setNodes(prevNodes => {
+      const parentNode = prevNodes.find(n => n.id === parentId);
+      if (!parentNode) return prevNodes;
 
-    const newNode: KinshipNode = {
-      id: `${parentId}-${newRelation}-${Date.now()}`,
-      parentId,
-      relation: newRelation,
-      label: term ? term.north : RELATION_LABELS[newRelation],
-      chain: newChain,
-      term,
+      const newChain = parentNode.chain ? `${parentNode.chain}.${newRelation}` : newRelation;
+      const newNodeId = `${parentId}-${newRelation}-${Date.now()}`;
+      
+      // Khởi tạo node tạm thời chưa có danh xưng
+      const newNode: KinshipNode = {
+        id: newNodeId,
+        parentId,
+        relation: newRelation,
+        label: 'Đang tính...',
+        chain: newChain,
+        term: null,
+      };
+
+      // Chạy tính toán async bên ngoài setNodes
+      getKinshipTerm(newChain).then(term => {
+        setNodes(current => current.map(n => 
+          n.id === newNodeId 
+            ? { ...n, term, label: term ? term.north : RELATION_LABELS[newRelation] } 
+            : n
+        ));
+        setIsLoading(false);
+      });
+
+      return [...prevNodes, newNode];
+    });
+  }, []);
+
+  const editRelation = useCallback(async (nodeId: string, newRelation: RelationType) => {
+    setIsLoading(true);
+    
+    // Tạo mảng mới để tính toán dây chuyền
+    let tempNodes = [...nodes];
+    const targetIdx = tempNodes.findIndex(n => n.id === nodeId);
+    if (targetIdx === -1) {
+      setIsLoading(false);
+      return;
+    }
+
+    // Đổi relation cho node mục tiêu
+    tempNodes[targetIdx] = { ...tempNodes[targetIdx], relation: newRelation };
+
+    // Đệ quy cập nhật chain và gửi request cho nhánh
+    const updateNodeAndChildren = async (currentId: string) => {
+      const idx = tempNodes.findIndex(n => n.id === currentId);
+      if (idx === -1) return;
+      const node = { ...tempNodes[idx] };
+      
+      if (node.id === 'root' || !node.parentId) {
+         node.chain = '';
+      } else {
+         const parent = tempNodes.find(n => n.id === node.parentId);
+         node.chain = parent?.chain ? `${parent.chain}.${node.relation}` : node.relation;
+      }
+      
+      // Fetch new term
+      const term = await getKinshipTerm(node.chain);
+      node.term = term;
+      node.label = term ? term.north : (node.relation === 'root' ? 'Tôi' : RELATION_LABELS[node.relation as RelationType]);
+      
+      tempNodes[idx] = node;
+
+      // Tìm và đệ quy cập nhật các node con
+      const children = tempNodes.filter(n => n.parentId === currentId);
+      for (const child of children) {
+        await updateNodeAndChildren(child.id);
+      }
     };
 
-    setNodes(prev => [...prev, newNode]);
-    return newNode;
+    await updateNodeAndChildren(nodeId);
+    setNodes(tempNodes);
+    setIsLoading(false);
   }, [nodes]);
 
   const removeNode = useCallback((id: string) => {
-    // This is simple: just remove the node and its children (recursively if needed, but for now just filter out)
-    // A better approach for trees is to find all descendants, but for simplicity we'll just filter by id and parentId.
-    // Assuming simple linear wizard for now.
     setNodes(prev => {
-      const idx = prev.findIndex(n => n.id === id);
-      if (idx === -1) return prev;
-      return prev.slice(0, idx); // Cuts off this node and everything after it (good for linear mobile wizard)
+      // Đệ quy tìm tất cả ID của node con cháu cần xoá
+      const idsToRemove = new Set<string>([id]);
+      
+      let added = true;
+      while (added) {
+        added = false;
+        for (const n of prev) {
+          if (n.parentId && idsToRemove.has(n.parentId) && !idsToRemove.has(n.id)) {
+            idsToRemove.add(n.id);
+            added = true;
+          }
+        }
+      }
+      return prev.filter(n => !idsToRemove.has(n.id));
     });
   }, []);
 
@@ -75,6 +139,7 @@ export function useKinshipTree() {
   return {
     nodes,
     addRelation,
+    editRelation,
     removeNode,
     resetTree,
     isLoading

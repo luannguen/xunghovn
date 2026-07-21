@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ReactFlow,
   MiniMap,
@@ -9,60 +9,44 @@ import {
   useNodesState,
   useEdgesState,
   Node,
-  Edge
+  Edge,
+  NodeTypes
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { useKinshipTree, RELATION_LABELS, RelationType, KinshipNode } from '@/hooks/useKinshipTree';
-
-const nodeStyle = {
-  background: '#ffffff',
-  color: '#0f172a',
-  borderRadius: '12px',
-  padding: '16px',
-  border: '2px solid #e2e8f0',
-  boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-  width: 180,
-  textAlign: 'center' as const,
-  fontWeight: 'bold',
-};
-
-const selectedNodeStyle = {
-  ...nodeStyle,
-  border: '2px solid #10b981',
-  boxShadow: '0 10px 15px -3px rgb(16 185 129 / 0.3)',
-};
+import { useKinshipTree } from '@/hooks/useKinshipTree';
+import { getLayoutedElements } from '@/lib/layoutElements';
+import { CustomKinshipNode } from './CustomKinshipNode';
 
 export default function DesktopLayout() {
-  const { nodes: kinNodes, addRelation, resetTree, isLoading } = useKinshipTree();
+  const { nodes: kinNodes, addRelation, editRelation, removeNode, resetTree, isLoading } = useKinshipTree();
   
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>('root');
+  const [layoutDirection, setLayoutDirection] = useState<'TB' | 'LR'>('TB');
 
-  // Sync KinshipTree state with React Flow state
+  const nodeTypes = useMemo<NodeTypes>(() => ({ custom: CustomKinshipNode }), []);
+
+  // Đóng gói logic để custom node có thể gọi được các hàm của hook
+  const nodeDataFunctions = useMemo(() => ({
+    onAddRelation: async (id: string, rel: any) => await addRelation(id, rel),
+    onEditRelation: async (id: string, rel: any) => await editRelation(id, rel),
+    onRemoveNode: (id: string) => removeNode(id),
+  }), [addRelation, editRelation, removeNode]);
+
   useEffect(() => {
-    // Generate flow nodes
-    const newFlowNodes: Node[] = kinNodes.map((kn, idx) => {
-      // Basic layout algorithm: just line them up vertically for now, 
-      // or if it's a tree, we could use dagre, but let's do a simple diagonal/vertical offset
-      return {
-        id: kn.id,
-        position: { x: 250 + (idx * 50), y: 100 + (idx * 150) }, // simple waterfall layout
-        data: { 
-          label: (
-            <div className="flex flex-col">
-              <span className="text-xs text-slate-400 font-normal mb-1">{kn.relation === 'root' ? 'Bắt đầu' : RELATION_LABELS[kn.relation]}</span>
-              <span className="text-lg text-emerald-700">{kn.label}</span>
-            </div>
-          ) 
-        },
-        style: selectedNodeId === kn.id ? selectedNodeStyle : nodeStyle,
-      };
-    });
+    // 1. Tạo node cơ bản
+    const rawNodes: Node[] = kinNodes.map((kn) => ({
+      id: kn.id,
+      position: { x: 0, y: 0 }, // Dagre sẽ ghi đè toạ độ này
+      type: 'custom',
+      data: { 
+        kinshipNode: kn,
+        ...nodeDataFunctions
+      },
+    }));
 
-    // Generate flow edges
-    const newFlowEdges: Edge[] = kinNodes
+    // 2. Tạo edge cơ bản
+    const rawEdges: Edge[] = kinNodes
       .filter(kn => kn.parentId)
       .map(kn => ({
         id: `e-${kn.parentId}-${kn.id}`,
@@ -73,113 +57,66 @@ export default function DesktopLayout() {
         style: { stroke: '#10b981', strokeWidth: 2 }
       }));
 
-    setNodes(newFlowNodes);
-    setEdges(newFlowEdges);
-  }, [kinNodes, selectedNodeId, setNodes, setEdges]);
+    // 3. Chạy thuật toán Dagre
+    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+      rawNodes,
+      rawEdges,
+      layoutDirection
+    );
 
-  const onNodeClick = useCallback((_: any, node: Node) => {
-    setSelectedNodeId(node.id);
-  }, []);
-
-  const handleAddRelation = async (relation: RelationType) => {
-    if (!selectedNodeId) return;
-    const newNode = await addRelation(selectedNodeId, relation);
-    if (newNode) {
-      setSelectedNodeId(newNode.id);
-    }
-  };
-
-  const selectedKinNode = kinNodes.find(n => n.id === selectedNodeId);
+    setNodes([...layoutedNodes]);
+    setEdges([...layoutedEdges]);
+  }, [kinNodes, layoutDirection, setNodes, setEdges, nodeDataFunctions]);
 
   return (
-    <div className="flex h-screen w-full bg-slate-50 font-sans">
-      <aside className="w-96 bg-white border-r border-slate-200 flex flex-col shadow-xl z-10">
-        <div className="p-6 border-b border-slate-100">
-          <h1 className="text-3xl font-black text-emerald-600 mb-1 tracking-tight">Xưng Hô VN</h1>
-          <p className="text-sm text-slate-500 font-medium">Sơ đồ Gia phả (Desktop)</p>
+    <div className="flex flex-col h-screen w-full bg-slate-50 font-sans">
+      <header className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center shadow-sm z-10">
+        <div>
+          <h1 className="text-2xl font-black text-emerald-600 tracking-tight">Xưng Hô VN</h1>
+          <p className="text-xs text-slate-500 font-medium">Sơ đồ Gia phả (Desktop)</p>
         </div>
         
-        <div className="flex-1 overflow-y-auto p-6">
-          {selectedKinNode ? (
-            <div className="mb-8">
-              <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 mb-6">
-                <p className="text-xs text-slate-500 mb-1 uppercase tracking-wider font-semibold">Đang chọn nhánh:</p>
-                <h2 className="text-3xl font-bold text-slate-800">{selectedKinNode.label}</h2>
-                
-                {selectedKinNode.term && (
-                  <div className="mt-4 space-y-2">
-                    <div className="grid grid-cols-3 gap-2 text-xs font-medium text-center">
-                      <div className="bg-white border border-slate-200 p-2 rounded-lg">
-                        <span className="block text-slate-400 mb-1">Bắc</span>
-                        <span className="text-slate-700">{selectedKinNode.term.north}</span>
-                      </div>
-                      <div className="bg-white border border-slate-200 p-2 rounded-lg">
-                        <span className="block text-slate-400 mb-1">Trung</span>
-                        <span className="text-slate-700">{selectedKinNode.term.central}</span>
-                      </div>
-                      <div className="bg-white border border-slate-200 p-2 rounded-lg">
-                        <span className="block text-slate-400 mb-1">Nam</span>
-                        <span className="text-slate-700">{selectedKinNode.term.south}</span>
-                      </div>
-                    </div>
-                    {selectedKinNode.term.description && (
-                      <p className="text-sm text-slate-600 mt-2 p-2 bg-emerald-50 rounded-lg border border-emerald-100">
-                        {selectedKinNode.term.description}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <h3 className="text-sm font-semibold mb-3 text-slate-700 uppercase tracking-wider">
-                Mở rộng nhánh này:
-              </h3>
-              <div className="grid grid-cols-2 gap-2">
-                {(Object.keys(RELATION_LABELS) as RelationType[]).map((rel) => (
-                  <button
-                    key={rel}
-                    disabled={isLoading}
-                    onClick={() => handleAddRelation(rel)}
-                    className="w-full py-2.5 px-3 bg-white hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700 active:scale-95 disabled:opacity-50 disabled:active:scale-100 rounded-xl shadow-sm text-sm font-medium transition-all border border-slate-200 text-slate-700 text-left"
-                  >
-                    + {RELATION_LABELS[rel]}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <p className="text-slate-500 text-center mt-10 italic">Hãy bấm vào một ô trên sơ đồ để thao tác.</p>
-          )}
+        <div className="flex gap-3">
+          <button 
+            onClick={() => setLayoutDirection(prev => prev === 'TB' ? 'LR' : 'TB')}
+            className="px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 shadow-sm transition-all"
+            title="Đổi hướng sơ đồ"
+          >
+            Đổi hướng cây: {layoutDirection === 'TB' ? 'Dọc' : 'Ngang'}
+          </button>
+          
+          <button 
+            onClick={resetTree}
+            className="px-4 py-2 bg-rose-50 text-rose-600 border border-rose-100 rounded-lg text-sm font-medium hover:bg-rose-100 shadow-sm transition-all"
+          >
+            Làm mới sơ đồ
+          </button>
         </div>
+      </header>
 
-        <div className="p-6 border-t border-slate-100 bg-slate-50">
-           <button 
-            onClick={() => { resetTree(); setSelectedNodeId('root'); }}
-            className="w-full py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-medium transition-colors"
-           >
-             Làm mới sơ đồ
-           </button>
-        </div>
-      </aside>
-
-      <main className="flex-1 h-full relative">
+      <main className="flex-1 w-full relative">
         <ReactFlow
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
-          onNodeClick={onNodeClick}
+          nodeTypes={nodeTypes}
           fitView
           attributionPosition="bottom-right"
-          minZoom={0.2}
+          minZoom={0.1}
+          nodesDraggable={false} // Vì đã dùng Auto Layout nên khóa kéo thả tay
         >
           <Controls />
-          <MiniMap nodeColor={(n) => {
-            if (n.id === selectedNodeId) return '#10b981';
-            return '#e2e8f0';
-          }} />
+          <MiniMap nodeColor="#10b981" />
           <Background gap={16} size={1} color="#cbd5e1" />
         </ReactFlow>
+        
+        {isLoading && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-4 py-2 rounded-full text-sm font-medium shadow-xl flex items-center gap-2 z-50 animate-pulse">
+            <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce"></span>
+            Đang tính toán nhân xưng...
+          </div>
+        )}
       </main>
     </div>
   );
