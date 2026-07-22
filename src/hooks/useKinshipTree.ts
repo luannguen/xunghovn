@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { getKinshipTerm, RegionalTerm } from '@/services/kinshipService';
-import { GENDER_MAP, Ordinal, AgeOffset, Region, formatRegionalLabel, resolveEquivalentRelation } from '@/lib/kinshipLogic';
+import { GENDER_MAP, Ordinal, AgeOffset, Region, formatRegionalLabel, resolveEquivalentRelation, reduceKinshipChain } from '@/lib/kinshipLogic';
 
 export type RelationType = 
   | 'father' | 'mother' | 'husband' | 'wife' 
@@ -50,10 +50,13 @@ export function useKinshipTree() {
       const parentNode = prevNodes.find(n => n.id === parentId);
       if (!parentNode) return prevNodes;
 
-      // 1. Tự động quy đổi quan hệ tương đương (VD: Con trai của Bố -> Anh/Em trai)
+      // 1. Quy đổi quan hệ tương đương (VD: Con trai của Bố -> Anh/Em trai)
       const resolvedRel = resolveEquivalentRelation(parentNode.relation, requestedRelation, ageOffset);
 
-      const newChain = parentNode.chain ? `${parentNode.chain}.${resolvedRel}` : resolvedRel;
+      // 2. Rút gọn chuỗi quan hệ (VD: wife.father.wife -> wife.mother)
+      const rawChain = parentNode.chain ? `${parentNode.chain}.${resolvedRel}` : resolvedRel;
+      const newChain = reduceKinshipChain(rawChain);
+
       const newNodeId = `${parentId}-${resolvedRel}-${Date.now()}`;
       
       const defaultLabel = RELATION_LABELS[resolvedRel];
@@ -76,12 +79,12 @@ export function useKinshipTree() {
         ageOffset
       };
 
-      // Query database
+      // Query DB
       getKinshipTerm(newChain).then(term => {
         setNodes(current => current.map(n => {
           if (n.id === newNodeId) {
             const rawLabel = term ? term.north : fallbackBase;
-            const formattedLabel = formatRegionalLabel(rawLabel, ordinal, region, term);
+            const formattedLabel = formatRegionalLabel(rawLabel, ordinal, region, term, resolvedRel);
             return { ...n, term, label: formattedLabel };
           }
           return n;
@@ -127,7 +130,8 @@ export function useKinshipTree() {
          node.chain = '';
       } else {
          const p = tempNodes.find(n => n.id === node.parentId);
-         node.chain = p?.chain ? `${p.chain}.${node.relation}` : node.relation;
+         const rawChain = p?.chain ? `${p.chain}.${node.relation}` : node.relation;
+         node.chain = reduceKinshipChain(rawChain);
       }
       
       const term = await getKinshipTerm(node.chain);
@@ -139,7 +143,7 @@ export function useKinshipTree() {
         : (node.relation === 'root' ? 'Tôi' : RELATION_LABELS[node.relation as RelationType]);
 
       const rawLabel = term ? term.north : fallbackBase;
-      node.label = formatRegionalLabel(rawLabel, node.ordinal || 'none', region, term);
+      node.label = formatRegionalLabel(rawLabel, node.ordinal || 'none', region, term, node.relation);
       node.gender = GENDER_MAP[node.relation as RelationType];
       
       tempNodes[idx] = node;
@@ -176,7 +180,6 @@ export function useKinshipTree() {
     setNodes([{ id: 'root', parentId: null, relation: 'root', label: 'Tôi', chain: '', term: null, gender: 'UNKNOWN', ordinal: 'none' }]);
   }, []);
 
-  // Cập nhật lại toàn bộ nhãn hiển thị khi chuyển đổi Vùng miền
   const changeRegion = useCallback((newRegion: Region) => {
     setRegion(newRegion);
     setNodes(prev => prev.map(node => {
@@ -187,7 +190,7 @@ export function useKinshipTree() {
         : RELATION_LABELS[node.relation as RelationType];
 
       const rawLabel = node.term ? node.term.north : fallbackBase;
-      const formattedLabel = formatRegionalLabel(rawLabel, node.ordinal || 'none', newRegion, node.term);
+      const formattedLabel = formatRegionalLabel(rawLabel, node.ordinal || 'none', newRegion, node.term, node.relation);
       return { ...node, label: formattedLabel };
     }));
   }, []);

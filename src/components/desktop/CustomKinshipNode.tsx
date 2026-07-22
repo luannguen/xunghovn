@@ -2,10 +2,10 @@ import { memo, useState } from 'react';
 import { Handle, Position, NodeToolbar } from '@xyflow/react';
 import { Plus, Edit2, Trash2, X, Check, AlertTriangle } from 'lucide-react';
 import { KinshipNode, RELATION_LABELS, RelationType } from '@/hooks/useKinshipTree';
-import { getAvailableRelations, Ordinal, AgeOffset, ORDINAL_MAP } from '@/lib/kinshipLogic';
+import { getAvailableRelations, Ordinal, AgeOffset, isOrdinalAllowed } from '@/lib/kinshipLogic';
 
 const ORDINAL_OPTIONS: { value: Ordinal; label: string }[] = [
-  { value: 'none', label: '-- Thứ bậc --' },
+  { value: 'none', label: '-- Không chọn --' },
   { value: 'first', label: 'Thứ Cả / Hai' },
   { value: 'second', label: 'Thứ Ba' },
   { value: 'third', label: 'Thứ Tư' },
@@ -25,7 +25,8 @@ export const CustomKinshipNode = memo(({ data, isConnectable, selected }: any) =
   const [isAdding, setIsAdding] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   
-  const { allowed, warnings } = getAvailableRelations(nodeData.gender, childrenRelations);
+  // Lấy danh sách quan hệ được phép, loại bỏ trùng lặp ngược và độc bản
+  const { allowed, warnings } = getAvailableRelations(nodeData.gender, childrenRelations, nodeData.gender);
   const [selectedRel, setSelectedRel] = useState<RelationType>(allowed[0] || 'father');
   const [selectedOrdinal, setSelectedOrdinal] = useState<Ordinal>('none');
   const [selectedAgeOffset, setSelectedAgeOffset] = useState<AgeOffset>('older');
@@ -73,6 +74,7 @@ export const CustomKinshipNode = memo(({ data, isConnectable, selected }: any) =
   };
 
   const isSonOrDaughter = selectedRel === 'son' || selectedRel === 'daughter';
+  const canShowOrdinal = isOrdinalAllowed(selectedRel);
 
   return (
     <div className={`relative bg-white rounded-2xl p-4 min-w-[220px] border-2 shadow-sm transition-all
@@ -162,19 +164,21 @@ export const CustomKinshipNode = memo(({ data, isConnectable, selected }: any) =
               </div>
             )}
 
-            {/* Chọn Thứ bậc */}
-            <div>
-              <label className="text-[11px] font-semibold text-slate-400 block mb-1">Thứ bậc gia đình (không bắt buộc):</label>
-              <select
-                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-md outline-none text-xs font-medium text-slate-700"
-                value={selectedOrdinal}
-                onChange={(e) => setSelectedOrdinal(e.target.value as Ordinal)}
-              >
-                {ORDINAL_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
+            {/* Ô Chọn Thứ bậc CHỈ HIỂN THỊ nếu vai vế cho phép (Anh/Chị/Em/Chú/Bác...) */}
+            {canShowOrdinal && (
+              <div>
+                <label className="text-[11px] font-semibold text-slate-400 block mb-1">Thứ bậc gia đình:</label>
+                <select
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-md outline-none text-xs font-medium text-slate-700"
+                  value={selectedOrdinal}
+                  onChange={(e) => setSelectedOrdinal(e.target.value as Ordinal)}
+                >
+                  {ORDINAL_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <button
               onClick={handleConfirm}

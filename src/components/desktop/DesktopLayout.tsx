@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import {
   ReactFlow,
   MiniMap,
@@ -10,7 +10,8 @@ import {
   useEdgesState,
   Node,
   Edge,
-  NodeTypes
+  NodeTypes,
+  NodeChange
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useKinshipTree } from '@/hooks/useKinshipTree';
@@ -25,16 +26,32 @@ export default function DesktopLayout() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [layoutDirection, setLayoutDirection] = useState<'TB' | 'LR'>('TB');
 
+  // Ref lưu trữ toạ độ kéo-thả thủ công của người dùng
+  const customPositionsRef = useRef<Record<string, { x: number; y: number }>>({});
+
   const nodeTypes = useMemo<NodeTypes>(() => ({ custom: CustomKinshipNode }), []);
 
-  // Đóng gói logic để custom node có thể gọi được các hàm của hook
+  // Đóng gói logic callback cho Node
   const nodeDataFunctions = useMemo(() => ({
     onAddRelation: async (id: string, rel: any, ageOffset: any, ordinal: any) => 
       await addRelation(id, rel, ageOffset, ordinal),
     onEditRelation: async (id: string, rel: any, ageOffset: any, ordinal: any) => 
       await editRelation(id, rel, ageOffset, ordinal),
-    onRemoveNode: (id: string) => removeNode(id),
+    onRemoveNode: (id: string) => {
+      delete customPositionsRef.current[id];
+      removeNode(id);
+    },
   }), [addRelation, editRelation, removeNode]);
+
+  // Xử lý sự kiện kéo-thả: Lưu vị trí người dùng kéo vào Ref
+  const handleNodesChange = (changes: NodeChange<Node>[]) => {
+    onNodesChange(changes);
+    changes.forEach((change) => {
+      if (change.type === 'position' && change.position) {
+        customPositionsRef.current[change.id] = change.position;
+      }
+    });
+  };
 
   useEffect(() => {
     // 1. Tạo node cơ bản
@@ -42,7 +59,7 @@ export default function DesktopLayout() {
       const childrenRels = kinNodes.filter(c => c.parentId === kn.id).map(c => c.relation);
       return {
         id: kn.id,
-        position: { x: 0, y: 0 },
+        position: customPositionsRef.current[kn.id] || { x: 0, y: 0 },
         type: 'custom',
         data: { 
           kinshipNode: kn,
@@ -71,9 +88,25 @@ export default function DesktopLayout() {
       layoutDirection
     );
 
-    setNodes([...layoutedNodes]);
+    // Ghi đè toạ độ kéo-thả thủ công nếu node đó đã từng được kéo
+    const finalNodes = layoutedNodes.map(node => {
+      if (customPositionsRef.current[node.id]) {
+        return {
+          ...node,
+          position: customPositionsRef.current[node.id]
+        };
+      }
+      return node;
+    });
+
+    setNodes([...finalNodes]);
     setEdges([...layoutedEdges]);
   }, [kinNodes, layoutDirection, setNodes, setEdges, nodeDataFunctions]);
+
+  const handleReset = () => {
+    customPositionsRef.current = {};
+    resetTree();
+  };
 
   const REGION_OPTIONS: { key: Region; label: string; icon: string }[] = [
     { key: 'ALL', label: 'Toàn Quốc', icon: '🌐' },
@@ -124,7 +157,7 @@ export default function DesktopLayout() {
           </button>
           
           <button 
-            onClick={resetTree}
+            onClick={handleReset}
             className="px-4 py-2 bg-rose-50 text-rose-600 border border-rose-100 rounded-lg text-xs font-medium hover:bg-rose-100 shadow-sm transition-all"
           >
             Làm mới sơ đồ
@@ -132,18 +165,18 @@ export default function DesktopLayout() {
         </div>
       </header>
 
-      {/* Main Interactive Canvas */}
+      {/* Main Canvas */}
       <main className="flex-1 w-full relative">
         <ReactFlow
           nodes={nodes}
           edges={edges}
-          onNodesChange={onNodesChange}
+          onNodesChange={handleNodesChange}
           onEdgesChange={onEdgesChange}
           nodeTypes={nodeTypes}
           fitView
           attributionPosition="bottom-right"
           minZoom={0.1}
-          nodesDraggable={true} // ĐÃ BẬT KÉO THẢ NODE!
+          nodesDraggable={true}
         >
           <Controls />
           <MiniMap nodeColor="#10b981" />

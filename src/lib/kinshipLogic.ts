@@ -18,6 +18,14 @@ export type Ordinal =
 
 export type AgeOffset = 'older' | 'younger' | 'same';
 
+// Các vai vế ĐỘC BẢN KHÔNG DÙNG THỨ BẬC (Bố, Mẹ, Vợ, Chồng, Tôi)
+export function isOrdinalAllowed(relation: RelationType | 'root'): boolean {
+  if (relation === 'root' || relation === 'father' || relation === 'mother' || relation === 'husband' || relation === 'wife') {
+    return false;
+  }
+  return true;
+}
+
 // Nhãn Thứ bậc theo từng Vùng miền
 export const ORDINAL_MAP: Record<Region, Record<Ordinal, string>> = {
   ALL: {
@@ -48,7 +56,7 @@ export const ORDINAL_MAP: Record<Region, Record<Ordinal, string>> = {
   },
   SOUTH: {
     none: '',
-    first: 'Hai', // Miền Nam không gọi là Cả, con đầu gọi là Anh Hai / Chị Hai
+    first: 'Hai', // Miền Nam con đầu là Anh Hai / Chị Hai
     second: 'Ba',
     third: 'Tư',
     fourth: 'Năm',
@@ -104,7 +112,61 @@ export const GENERATION_OFFSET: Record<RelationType | 'root', number> = {
   daughter: 1,
 };
 
-// Động cơ Suy luận Quan hệ Đồng đương (Equivalence Chain Reducer)
+// Rút gọn các chuỗi quan hệ phức tạp & vòng lặp ngược
+export function reduceKinshipChain(chain: string): string {
+  if (!chain) return '';
+  
+  let parts = chain.split('.');
+
+  // Đệ quy áp dụng các luật thu gọn chuỗi
+  let changed = true;
+  while (changed) {
+    changed = false;
+    const len = parts.length;
+    if (len < 2) break;
+
+    const lastTwo = parts.slice(len - 2).join('.');
+    const lastThree = len >= 3 ? parts.slice(len - 3).join('.') : '';
+
+    // 1. Mẹ của Bố vợ / Vợ của Bố vợ -> Mẹ vợ
+    if (lastTwo === 'father.wife' && parts[len - 3] === 'wife') {
+      parts.splice(len - 2, 2, 'mother');
+      changed = true;
+    }
+    // 2. Mẹ của Bác / Cô / Chú bên Nội -> Mẹ của Bố (Bà nội)
+    else if ((parts[len - 2].startsWith('brother') || parts[len - 2].startsWith('sister')) && parts[len - 3] === 'father' && parts[len - 1] === 'mother') {
+      parts = parts.slice(0, len - 2);
+      parts.push('mother'); // father.mother
+      changed = true;
+    }
+    // 3. Bố của Bác / Cô / Chú bên Nội -> Bố của Bố (Ông nội)
+    else if ((parts[len - 2].startsWith('brother') || parts[len - 2].startsWith('sister')) && parts[len - 3] === 'father' && parts[len - 1] === 'father') {
+      parts = parts.slice(0, len - 2);
+      parts.push('father'); // father.father
+      changed = true;
+    }
+    // 4. Mẹ của Cậu / Dì bên Ngoại -> Mẹ của Mẹ (Bà ngoại)
+    else if ((parts[len - 2].startsWith('brother') || parts[len - 2].startsWith('sister')) && parts[len - 3] === 'mother' && parts[len - 1] === 'mother') {
+      parts = parts.slice(0, len - 2);
+      parts.push('mother'); // mother.mother
+      changed = true;
+    }
+    // 5. Bố của Anh/Chị/Em -> Bố
+    else if ((parts[len - 2].startsWith('brother') || parts[len - 2].startsWith('sister')) && parts[len - 1] === 'father') {
+      parts.splice(len - 2, 2, 'father');
+      changed = true;
+    }
+    // 6. Mẹ của Anh/Chị/Em -> Mẹ
+    else if ((parts[len - 2].startsWith('brother') || parts[len - 2].startsWith('sister')) && parts[len - 1] === 'mother') {
+      parts.splice(len - 2, 2, 'mother');
+      changed = true;
+    }
+  }
+
+  return parts.join('.');
+}
+
+// Động cơ Suy luận Quan hệ Đồng đương
 export function resolveEquivalentRelation(
   parentRelation: string,
   newRelation: RelationType,
@@ -123,21 +185,31 @@ export function resolveEquivalentRelation(
   return newRelation;
 }
 
-// Kiểm tra danh sách quan hệ hợp lệ
+// Kiểm tra danh sách quan hệ hợp lệ và chống trùng lặp lặp ngược
 export function getAvailableRelations(
   nodeGender: Gender, 
-  existingChildrenRelations: RelationType[]
+  existingChildrenRelations: RelationType[],
+  parentGender?: Gender
 ): { allowed: RelationType[], warnings: Partial<Record<RelationType, string>> } {
   const allRels = Object.keys(GENDER_MAP).filter(k => k !== 'root') as RelationType[];
   const warnings: Partial<Record<RelationType, string>> = {};
   
   const allowed = allRels.filter(rel => {
-    // Quy tắc Độc bản: Chỉ có tối đa 1 Bố, 1 Mẹ trực tiếp
+    // 1. Quy tắc Độc bản: Chỉ có tối đa 1 Bố, 1 Mẹ trực tiếp
     if ((rel === 'father' || rel === 'mother') && existingChildrenRelations.includes(rel)) {
       return false;
     }
 
-    // Quy tắc Giới tính (Cảnh báo LGBT)
+    // 2. Chống lặp ngược: Nếu node này được sinh ra từ một người cha Nam (parentGender === 'MALE'), thì người cha đó ĐÃ TỒN TẠI. Cấm thêm 'father'
+    if (rel === 'father' && parentGender === 'MALE') {
+      return false;
+    }
+    // Nếu node này sinh ra từ người mẹ Nữ, cấm thêm 'mother'
+    if (rel === 'mother' && parentGender === 'FEMALE') {
+      return false;
+    }
+
+    // 3. Quy tắc Giới tính (Cảnh báo LGBT)
     if (nodeGender === 'MALE' && rel === 'husband') {
       warnings[rel] = 'LGBT';
     }
@@ -156,15 +228,21 @@ export function formatRegionalLabel(
   baseLabel: string, 
   ordinal: Ordinal = 'none', 
   region: Region = 'ALL',
-  termObj: any = null
+  termObj: any = null,
+  relation: RelationType | 'root' = 'root'
 ): string {
   let label = baseLabel;
   
-  // Nếu có dữ liệu từ DB theo miền
+  // Lấy từ DB theo miền
   if (termObj) {
     if (region === 'NORTH' && termObj.north) label = termObj.north;
     else if (region === 'CENTRAL' && termObj.central) label = termObj.central;
     else if (region === 'SOUTH' && termObj.south) label = termObj.south;
+  }
+
+  // Nếu vai vế không dùng thứ bậc (Bố, Mẹ, Vợ, Chồng), KHÔNG ghép Thứ Bậc!
+  if (!isOrdinalAllowed(relation)) {
+    return label;
   }
 
   const ordinalText = ORDINAL_MAP[region][ordinal];
