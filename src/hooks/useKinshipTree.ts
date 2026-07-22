@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { getKinshipTerm, RegionalTerm } from '@/services/kinshipService';
+import { GENDER_MAP } from '@/lib/kinshipLogic';
 
 export type RelationType = 
   | 'father' | 'mother' | 'husband' | 'wife' 
@@ -147,7 +148,7 @@ export function useKinshipTree() {
   }, []);
 
   const resetTree = useCallback(() => {
-    setNodes([{ id: 'root', parentId: null, relation: 'root', label: 'Tôi', chain: '', term: null }]);
+    setNodes([{ id: 'root', parentId: null, relation: 'root', label: 'Tôi', chain: '', term: null, gender: 'UNKNOWN' }]);
   }, []);
 
   return {
