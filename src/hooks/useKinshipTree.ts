@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { getKinshipTerm, RegionalTerm } from '@/services/kinshipService';
 import { GENDER_MAP, Ordinal, AgeOffset, Region, formatRegionalLabel, resolveEquivalentRelation, reduceKinshipChain } from '@/lib/kinshipLogic';
+import { KinshipPathStep } from '@/lib/kinshipExpander';
 
 export type RelationType = 
   | 'father' | 'mother' | 'husband' | 'wife' 
@@ -20,7 +21,6 @@ export const RELATION_LABELS: Record<RelationType, string> = {
   sister_younger: 'Em gái',
 };
 
-// Các vai vế trực tiếp không ghép chữ "của [Parent]" khi tạo nhãn fallback
 const DIRECT_RELATIONS: Set<string> = new Set([
   'father', 'mother', 'husband', 'wife', 
   'son', 'daughter', 'brother_older', 'brother_younger', 
@@ -57,18 +57,12 @@ export function useKinshipTree() {
       const parentNode = prevNodes.find(n => n.id === parentId);
       if (!parentNode) return prevNodes;
 
-      // 1. Quy đổi quan hệ tương đương (VD: Con trai của Bố/Mẹ -> Anh/Em trai)
       const resolvedRel = resolveEquivalentRelation(parentNode.relation, requestedRelation, ageOffset);
-
-      // 2. Rút gọn chuỗi quan hệ (VD: wife.father.wife -> wife.mother)
       const rawChain = parentNode.chain ? `${parentNode.chain}.${resolvedRel}` : resolvedRel;
       const newChain = reduceKinshipChain(rawChain);
-
       const newNodeId = `${parentId}-${resolvedRel}-${Date.now()}`;
-      
       const defaultLabel = RELATION_LABELS[resolvedRel];
 
-      // Nếu quan hệ thuộc nhóm trực tiếp (Anh/Chị/Em/Con/Bố/Mẹ), KHÔNG ghép "của Mẹ" hay "của Bố"
       let fallbackBase = defaultLabel;
       if (parentNode.id !== 'root' && !DIRECT_RELATIONS.has(resolvedRel) && !DIRECT_RELATIONS.has(newChain)) {
         fallbackBase = `${defaultLabel} của ${parentNode.label}`;
@@ -76,7 +70,6 @@ export function useKinshipTree() {
 
       const newGender = GENDER_MAP[resolvedRel];
 
-      // Khởi tạo node tạm thời
       const newNode: KinshipNode = {
         id: newNodeId,
         parentId,
@@ -89,7 +82,6 @@ export function useKinshipTree() {
         ageOffset
       };
 
-      // Query DB
       getKinshipTerm(newChain).then(term => {
         setNodes(current => current.map(n => {
           if (n.id === newNodeId) {
@@ -105,6 +97,37 @@ export function useKinshipTree() {
       return [...prevNodes, newNode];
     });
   }, [region]);
+
+  // Động cơ Phóng tác Tự động Nhánh Gia Phả (Auto Expand Path)
+  const autoExpandKinshipPath = useCallback(async (
+    steps: KinshipPathStep[],
+    finalOrdinal: Ordinal = 'none',
+    finalAgeOffset: AgeOffset = 'older'
+  ) => {
+    setIsLoading(true);
+    let currentParentId = 'root';
+
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+      const isLast = i === steps.length - 1;
+      const stepOrdinal = isLast ? finalOrdinal : (step.ordinal || 'none');
+      const stepAgeOffset = isLast ? finalAgeOffset : (step.ageOffset || 'older');
+
+      // Tìm xem node con đã tồn tại chưa
+      let currentNodes = nodes;
+      let existingChild = currentNodes.find(n => n.parentId === currentParentId && n.relation === step.relation);
+
+      if (existingChild) {
+        currentParentId = existingChild.id;
+      } else {
+        // Tạo node mới và chờ
+        await addRelation(currentParentId, step.relation, stepAgeOffset, stepOrdinal);
+        // Lấy node vừa tạo làm parent mới
+        await new Promise(res => setTimeout(res, 200));
+      }
+    }
+    setIsLoading(false);
+  }, [nodes, addRelation]);
 
   const editRelation = useCallback(async (
     nodeId: string, 
@@ -215,6 +238,7 @@ export function useKinshipTree() {
     region,
     changeRegion,
     addRelation,
+    autoExpandKinshipPath,
     editRelation,
     removeNode,
     resetTree,

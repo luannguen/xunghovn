@@ -17,14 +17,17 @@ import '@xyflow/react/dist/style.css';
 import { useKinshipTree } from '@/hooks/useKinshipTree';
 import { getLayoutedElements } from '@/lib/layoutElements';
 import { CustomKinshipNode } from './CustomKinshipNode';
-import { Region } from '@/lib/kinshipLogic';
+import { QuickAddKinshipModal } from './QuickAddKinshipModal';
+import { Region, Ordinal } from '@/lib/kinshipLogic';
+import { Zap } from 'lucide-react';
 
 export default function DesktopLayout() {
-  const { nodes: kinNodes, region, changeRegion, addRelation, editRelation, removeNode, resetTree, isLoading } = useKinshipTree();
+  const { nodes: kinNodes, region, changeRegion, addRelation, autoExpandKinshipPath, editRelation, removeNode, resetTree, isLoading } = useKinshipTree();
   
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [layoutDirection, setLayoutDirection] = useState<'TB' | 'LR'>('TB');
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState<boolean>(false);
 
   // Ref lưu trữ toạ độ kéo-thả thủ công của người dùng
   const customPositionsRef = useRef<Record<string, { x: number; y: number }>>({});
@@ -43,7 +46,7 @@ export default function DesktopLayout() {
     },
   }), [addRelation, editRelation, removeNode]);
 
-  // Xử lý sự kiện kéo-thả: Lưu vị trí người dùng kéo vào Ref
+  // Xử lý sự kiện kéo-thả
   const handleNodesChange = (changes: NodeChange<Node>[]) => {
     onNodesChange(changes);
     changes.forEach((change) => {
@@ -54,10 +57,8 @@ export default function DesktopLayout() {
   };
 
   useEffect(() => {
-    // Tập hợp toàn bộ relations đang có trên cây
     const allTreeRelations = kinNodes.map(kn => kn.relation);
 
-    // 1. Tạo node cơ bản
     const rawNodes: Node[] = kinNodes.map((kn) => {
       const childrenRels = kinNodes.filter(c => c.parentId === kn.id).map(c => c.relation);
       return {
@@ -73,7 +74,6 @@ export default function DesktopLayout() {
       };
     });
 
-    // 2. Tạo edge cơ bản
     const rawEdges: Edge[] = kinNodes
       .filter(kn => kn.parentId)
       .map(kn => ({
@@ -85,14 +85,12 @@ export default function DesktopLayout() {
         style: { stroke: '#10b981', strokeWidth: 2 }
       }));
 
-    // 3. Chạy thuật toán Dagre
     const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
       rawNodes,
       rawEdges,
       layoutDirection
     );
 
-    // Ghi đè toạ độ kéo-thả thủ công nếu node đó đã từng được kéo
     const finalNodes = layoutedNodes.map(node => {
       if (customPositionsRef.current[node.id]) {
         return {
@@ -112,6 +110,10 @@ export default function DesktopLayout() {
     resetTree();
   };
 
+  const handleConfirmQuickExpand = (steps: any[], ordinal: Ordinal) => {
+    autoExpandKinshipPath(steps, ordinal);
+  };
+
   const REGION_OPTIONS: { key: Region; label: string; icon: string }[] = [
     { key: 'ALL', label: 'Toàn Quốc', icon: '🌐' },
     { key: 'NORTH', label: 'Miền Bắc', icon: '🏛️' },
@@ -129,26 +131,37 @@ export default function DesktopLayout() {
           </div>
           <div>
             <h1 className="text-xl font-black text-emerald-700 tracking-tight">Xưng Hô VN</h1>
-            <p className="text-xs text-slate-500 font-medium">Từ điển Gia Phả & Nhẩm Danh Xưng Việt Nam</p>
+            <p className="text-xs text-slate-500 font-medium">Từ điển Gia Phả & Tra Cứu Danh Xưng Việt Nam</p>
           </div>
         </div>
 
-        {/* Region Switcher */}
-        <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-inner">
-          {REGION_OPTIONS.map((reg) => (
-            <button
-              key={reg.key}
-              onClick={() => changeRegion(reg.key)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                region === reg.key 
-                  ? 'bg-white text-emerald-700 shadow-md font-bold' 
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <span>{reg.icon}</span>
-              <span>{reg.label}</span>
-            </button>
-          ))}
+        {/* Action Center */}
+        <div className="flex items-center gap-4">
+          {/* Quick Add Button */}
+          <button
+            onClick={() => setIsQuickAddOpen(true)}
+            className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 active:scale-95"
+          >
+            <Zap size={16} /> ⚡ Thêm Nhanh Vai Vế
+          </button>
+
+          {/* Region Switcher */}
+          <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-inner">
+            {REGION_OPTIONS.map((reg) => (
+              <button
+                key={reg.key}
+                onClick={() => changeRegion(reg.key)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                  region === reg.key 
+                    ? 'bg-white text-emerald-700 shadow-md font-bold' 
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <span>{reg.icon}</span>
+                <span>{reg.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
         
         <div className="flex gap-3">
@@ -157,7 +170,7 @@ export default function DesktopLayout() {
             className="px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 shadow-sm transition-all"
             title="Đổi hướng sơ đồ"
           >
-            Hướng cây: {layoutDirection === 'TB' ? 'Dọc (Hàng ngày)' : 'Ngang (Thế hệ)'}
+            Hướng cây: {layoutDirection === 'TB' ? 'Dọc' : 'Ngang'}
           </button>
           
           <button 
@@ -190,10 +203,17 @@ export default function DesktopLayout() {
         {isLoading && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-4 py-2 rounded-full text-xs font-medium shadow-xl flex items-center gap-2 z-50 animate-pulse">
             <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce"></span>
-            Đang tính toán xưng hô theo vùng miền...
+            Đang tự động sinh nhánh cây gia phả...
           </div>
         )}
       </main>
+
+      {/* Quick Add Modal */}
+      <QuickAddKinshipModal
+        isOpen={isQuickAddOpen}
+        onClose={() => setIsQuickAddOpen(false)}
+        onConfirmExpand={handleConfirmQuickExpand}
+      />
     </div>
   );
 }
