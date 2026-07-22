@@ -21,12 +21,21 @@ export const CustomKinshipNode = memo(({ data, isConnectable, selected }: any) =
   const nodeData = data.kinshipNode as KinshipNode;
   const isRoot = nodeData.relation === 'root';
   const childrenRelations = data.childrenRelations || [];
+  const allTreeRelations = data.allTreeRelations || [];
 
   const [isAdding, setIsAdding] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   
-  // Lấy danh sách quan hệ được phép, loại bỏ trùng lặp ngược và độc bản
-  const { allowed, warnings } = getAvailableRelations(nodeData.gender, childrenRelations, nodeData.gender);
+  // Lấy danh sách quan hệ hợp lệ và tự động khóa các quan hệ Redundant (Chồng của Vợ, Bố của Con gái...)
+  const { allowed, warnings } = getAvailableRelations(
+    nodeData.gender, 
+    childrenRelations, 
+    nodeData.gender,
+    nodeData.relation,
+    nodeData.chain,
+    allTreeRelations
+  );
+  
   const [selectedRel, setSelectedRel] = useState<RelationType>(allowed[0] || 'father');
   const [selectedOrdinal, setSelectedOrdinal] = useState<Ordinal>('none');
   const [selectedAgeOffset, setSelectedAgeOffset] = useState<AgeOffset>('older');
@@ -128,7 +137,7 @@ export const CustomKinshipNode = memo(({ data, isConnectable, selected }: any) =
                 value={selectedRel}
                 onChange={(e) => setSelectedRel(e.target.value as RelationType)}
               >
-                {allowed.length === 0 && <option value="" disabled>Hết quan hệ khả dụng</option>}
+                {allowed.length === 0 && <option value="" disabled>Không có quan hệ khả dụng</option>}
                 {allowed.map((rel) => (
                   <option key={rel} value={rel}>
                     {RELATION_LABELS[rel]} {warnings[rel] === 'LGBT' ? ' 🏳️‍🌈' : ''}
@@ -164,7 +173,7 @@ export const CustomKinshipNode = memo(({ data, isConnectable, selected }: any) =
               </div>
             )}
 
-            {/* Ô Chọn Thứ bậc CHỈ HIỂN THỊ nếu vai vế cho phép (Anh/Chị/Em/Chú/Bác...) */}
+            {/* Ô Chọn Thứ bậc CHỈ HIỂN THỊ nếu vai vế cho phép */}
             {canShowOrdinal && (
               <div>
                 <label className="text-[11px] font-semibold text-slate-400 block mb-1">Thứ bậc gia đình:</label>
@@ -183,7 +192,7 @@ export const CustomKinshipNode = memo(({ data, isConnectable, selected }: any) =
             <button
               onClick={handleConfirm}
               disabled={allowed.length === 0}
-              className="mt-1 w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-md text-xs font-semibold transition-colors flex items-center justify-center gap-1 shadow-sm"
+              className="mt-1 w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-md text-xs font-semibold transition-colors flex items-center justify-center gap-1 shadow-sm disabled:opacity-50"
             >
               <Check size={16} /> Xác nhận
             </button>

@@ -160,7 +160,6 @@ export function reduceKinshipChain(chain: string): string {
   let changed = true;
   let iterations = 0;
 
-  // Lặp cho tới khi không còn pattern nào khớp (Tối đa 10 vòng để tránh vô tận)
   while (changed && iterations < 10) {
     changed = false;
     iterations++;
@@ -172,7 +171,6 @@ export function reduceKinshipChain(chain: string): string {
     }
   }
 
-  // Làm sạch các dấu chấm dư thừa
   return current.replace(/^\.+|\.+$/g, '').replace(/\.{2,}/g, '.');
 }
 
@@ -195,16 +193,52 @@ export function resolveEquivalentRelation(
   return newRelation;
 }
 
+// Hàm kiểm tra quan hệ bị Redundant (Vòng lặp tự thân / Tái tạo ô trùng)
+export function isRelationRedundant(
+  nodeRelation: string,
+  nodeChain: string,
+  targetRelation: RelationType,
+  allTreeRelations: string[] = []
+): boolean {
+  // 1. Khóa 'husband' trên ô Vợ ('wife'), và khóa 'wife' trên ô Chồng ('husband') -> Vì chính là Tôi (root)
+  if (nodeRelation === 'wife' && targetRelation === 'husband') return true;
+  if (nodeRelation === 'husband' && targetRelation === 'wife') return true;
+
+  // 2. Khóa 'father' và 'mother' trên các con của 'root' ('son', 'daughter')
+  if ((nodeChain === 'son' || nodeChain === 'daughter') && targetRelation === 'father') {
+    return true; // Bố của con tôi chính là Tôi
+  }
+  if ((nodeChain === 'son' || nodeChain === 'daughter') && targetRelation === 'mother') {
+    if (allTreeRelations.includes('wife')) return true; // Mẹ của con tôi chính là Vợ tôi (nếu Vợ đã có)
+  }
+
+  // 3. Khóa 'father' và 'mother' trên Anh/Chị/Em ruột của Tôi nếu Bố/Mẹ đã có trên cây
+  if (nodeRelation.startsWith('brother') || nodeRelation.startsWith('sister')) {
+    if (targetRelation === 'father' && allTreeRelations.includes('father')) return true;
+    if (targetRelation === 'mother' && allTreeRelations.includes('mother')) return true;
+  }
+
+  return false;
+}
+
 // Kiểm tra danh sách quan hệ hợp lệ
 export function getAvailableRelations(
   nodeGender: Gender, 
   existingChildrenRelations: RelationType[],
-  parentGender?: Gender
+  parentGender?: Gender,
+  nodeRelation: string = 'root',
+  nodeChain: string = '',
+  allTreeRelations: string[] = []
 ): { allowed: RelationType[], warnings: Partial<Record<RelationType, string>> } {
   const allRels = Object.keys(GENDER_MAP).filter(k => k !== 'root') as RelationType[];
   const warnings: Partial<Record<RelationType, string>> = {};
   
   const allowed = allRels.filter(rel => {
+    // 0. Khóa tuyệt đối các quan hệ Redundant (Chồng của Vợ, Bố của Con gái...)
+    if (isRelationRedundant(nodeRelation, nodeChain, rel, allTreeRelations)) {
+      return false;
+    }
+
     // 1. Quy tắc Độc bản: Tối đa 1 Bố, 1 Mẹ trực tiếp
     if ((rel === 'father' || rel === 'mother') && existingChildrenRelations.includes(rel)) {
       return false;
@@ -243,14 +277,12 @@ export function formatRegionalLabel(
 ): string {
   let label = baseLabel;
   
-  // Lấy từ DB theo miền
   if (termObj) {
     if (region === 'NORTH' && termObj.north) label = termObj.north;
     else if (region === 'CENTRAL' && termObj.central) label = termObj.central;
     else if (region === 'SOUTH' && termObj.south) label = termObj.south;
   }
 
-  // Nếu vai vế không dùng thứ bậc (Bố, Mẹ, Vợ, Chồng), KHÔNG ghép Thứ Bậc!
   if (!isOrdinalAllowed(relation)) {
     return label;
   }

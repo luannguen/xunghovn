@@ -54,6 +54,9 @@ export default function DesktopLayout() {
   };
 
   useEffect(() => {
+    // Tập hợp toàn bộ relations đang có trên cây
+    const allTreeRelations = kinNodes.map(kn => kn.relation);
+
     // 1. Tạo node cơ bản
     const rawNodes: Node[] = kinNodes.map((kn) => {
       const childrenRels = kinNodes.filter(c => c.parentId === kn.id).map(c => c.relation);
@@ -64,6 +67,7 @@ export default function DesktopLayout() {
         data: { 
           kinshipNode: kn,
           childrenRelations: childrenRels,
+          allTreeRelations: allTreeRelations,
           ...nodeDataFunctions
         },
       };
