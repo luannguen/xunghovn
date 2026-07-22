@@ -25,17 +25,17 @@ export const CustomKinshipNode = memo(({ data, isConnectable, selected }: any) =
 
   const [isAdding, setIsAdding] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  
+
   // Lấy danh sách quan hệ hợp lệ và tự động khóa các quan hệ Redundant (Chồng của Vợ, Bố của Con gái...)
   const { allowed, warnings } = getAvailableRelations(
-    nodeData.gender, 
-    childrenRelations, 
+    nodeData.gender,
+    childrenRelations,
     nodeData.gender,
     nodeData.relation,
     nodeData.chain,
     allTreeRelations
   );
-  
+
   const [selectedRel, setSelectedRel] = useState<RelationType>(allowed[0] || 'father');
   const [selectedOrdinal, setSelectedOrdinal] = useState<Ordinal>('none');
   const [selectedAgeOffset, setSelectedAgeOffset] = useState<AgeOffset>('older');
@@ -93,7 +93,7 @@ export const CustomKinshipNode = memo(({ data, isConnectable, selected }: any) =
         {/* Action Buttons */}
         {!isAdding && !isEditing && !showLGBTWarning && (
           <div className="flex gap-2">
-            <button 
+            <button
               onClick={onInitAdd}
               className="p-2 bg-white hover:bg-emerald-50 text-emerald-600 rounded-full shadow-md border border-slate-200 transition-transform active:scale-95 flex items-center gap-1 text-xs font-semibold px-3"
               title="Thêm nhánh con"
@@ -102,14 +102,14 @@ export const CustomKinshipNode = memo(({ data, isConnectable, selected }: any) =
             </button>
             {!isRoot && (
               <>
-                <button 
+                <button
                   onClick={onInitEdit}
                   className="p-2 bg-white hover:bg-amber-50 text-amber-600 rounded-full shadow-md border border-slate-200 transition-transform active:scale-95"
                   title="Sửa quan hệ"
                 >
                   <Edit2 size={16} />
                 </button>
-                <button 
+                <button
                   onClick={onDelete}
                   className="p-2 bg-white hover:bg-rose-50 text-rose-600 rounded-full shadow-md border border-slate-200 transition-transform active:scale-95"
                   title="Xoá Node và các nhánh con"
@@ -152,19 +152,19 @@ export const CustomKinshipNode = memo(({ data, isConnectable, selected }: any) =
                 <label className="text-[11px] font-semibold text-slate-400 block mb-1">Độ tuổi so với bạn (Tôi):</label>
                 <div className="flex gap-2 text-xs">
                   <label className="flex items-center gap-1 cursor-pointer">
-                    <input 
-                      type="radio" 
-                      name="ageOffset" 
-                      value="older" 
+                    <input
+                      type="radio"
+                      name="ageOffset"
+                      value="older"
                       checked={selectedAgeOffset === 'older'}
                       onChange={() => setSelectedAgeOffset('older')}
                     /> Lớn hơn (Anh/Chị)
                   </label>
                   <label className="flex items-center gap-1 cursor-pointer">
-                    <input 
-                      type="radio" 
-                      name="ageOffset" 
-                      value="younger" 
+                    <input
+                      type="radio"
+                      name="ageOffset"
+                      value="younger"
                       checked={selectedAgeOffset === 'younger'}
                       onChange={() => setSelectedAgeOffset('younger')}
                     /> Nhỏ hơn (Em)
@@ -207,16 +207,16 @@ export const CustomKinshipNode = memo(({ data, isConnectable, selected }: any) =
             </div>
             <h4 className="font-bold text-slate-800 text-sm text-center mb-1">Cảnh báo logic truyền thống</h4>
             <p className="text-xs text-slate-500 text-center mb-4">
-              Trong gia phả truyền thống Việt Nam, Node Nam không thể lấy Chồng (hoặc Nữ lấy Vợ). Bạn đang thêm một quan hệ đồng giới (LGBT). 
+              Trong gia phả truyền thống Việt Nam, Node Nam không thể lấy Chồng (hoặc Nữ lấy Vợ). Bạn đang thêm một quan hệ đồng giới (LGBT).
             </p>
             <div className="flex w-full gap-2">
-              <button 
+              <button
                 onClick={closeAll}
                 className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 rounded-md text-xs font-semibold transition-colors"
               >
                 Hủy bỏ
               </button>
-              <button 
+              <button
                 onClick={proceedConfirm}
                 className="flex-1 bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-md text-xs font-semibold transition-colors shadow-sm"
               >
@@ -228,23 +228,23 @@ export const CustomKinshipNode = memo(({ data, isConnectable, selected }: any) =
       </NodeToolbar>
 
       {!isRoot && (
-        <Handle 
-          type="target" 
-          position={Position.Top} 
-          isConnectable={isConnectable} 
+        <Handle
+          type="target"
+          position={Position.Top}
+          isConnectable={isConnectable}
           className="w-3 h-3 bg-emerald-500 border-2 border-white"
         />
       )}
-      
+
       <div className="flex flex-col text-center relative">
         <span className="text-xs text-slate-400 font-medium mb-1 uppercase tracking-wider">
           {isRoot ? 'Bắt đầu' : RELATION_LABELS[nodeData.relation as RelationType]}
         </span>
-        
+
         <h3 className="text-2xl font-black text-emerald-700 tracking-tight">
           {nodeData.label}
         </h3>
-        
+
         {/* Gender Badge */}
         <div className="absolute top-0 right-0 flex gap-1">
           {nodeData.gender === 'MALE' && <span className="w-2 h-2 rounded-full bg-blue-400 shadow-sm" title="Nam"></span>}
@@ -269,10 +269,10 @@ export const CustomKinshipNode = memo(({ data, isConnectable, selected }: any) =
         )}
       </div>
 
-      <Handle 
-        type="source" 
-        position={Position.Bottom} 
-        isConnectable={isConnectable} 
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        isConnectable={isConnectable}
         className="w-3 h-3 bg-emerald-500 border-2 border-white"
       />
     </div>

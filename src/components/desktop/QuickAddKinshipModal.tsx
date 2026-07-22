@@ -34,7 +34,7 @@ export function QuickAddKinshipModal({ isOpen, onClose, onConfirmExpand }: Quick
 
   const filteredPresets = KINSHIP_PRESETS.filter(p => {
     const matchesCat = activeCategory === 'ALL' || p.category === activeCategory;
-    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           p.description.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesCat && matchesSearch;
   });
@@ -109,8 +109,8 @@ export function QuickAddKinshipModal({ isOpen, onClose, onConfirmExpand }: Quick
                 key={preset.id}
                 onClick={() => setSelectedPreset(preset)}
                 className={`p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
-                  isSelected 
-                    ? 'border-emerald-500 bg-emerald-50/50 shadow-sm' 
+                  isSelected
+                    ? 'border-emerald-500 bg-emerald-50/50 shadow-sm'
                     : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                 }`}
               >

@@ -9,7 +9,7 @@ export type RegionalTerm = {
 
 export async function getKinshipTerm(relationChain: string): Promise<RegionalTerm | null> {
   if (!relationChain) return null;
-  
+
   const { data, error } = await supabase
     .from('kinship_rules')
     .select('term_north, term_central, term_south, description')

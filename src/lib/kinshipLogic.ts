@@ -3,17 +3,17 @@ import { RelationType } from '@/hooks/useKinshipTree';
 export type Gender = 'MALE' | 'FEMALE' | 'UNKNOWN';
 export type Region = 'ALL' | 'NORTH' | 'CENTRAL' | 'SOUTH';
 
-export type Ordinal = 
-  | 'none' 
-  | 'first' 
-  | 'second' 
-  | 'third' 
-  | 'fourth' 
-  | 'fifth' 
-  | 'sixth' 
-  | 'seventh' 
-  | 'eighth' 
-  | 'ninth' 
+export type Ordinal =
+  | 'none'
+  | 'first'
+  | 'second'
+  | 'third'
+  | 'fourth'
+  | 'fifth'
+  | 'sixth'
+  | 'seventh'
+  | 'eighth'
+  | 'ninth'
   | 'youngest';
 
 export type AgeOffset = 'older' | 'younger' | 'same';
@@ -155,7 +155,7 @@ const REDUCE_PATTERNS: { pattern: RegExp; replacement: string }[] = [
 
 export function reduceKinshipChain(chain: string): string {
   if (!chain) return '';
-  
+
   let current = chain;
   let changed = true;
   let iterations = 0;
@@ -184,7 +184,7 @@ export function resolveEquivalentRelation(
   if ((parentRelation === 'father' || parentRelation === 'mother') && newRelation === 'son') {
     return ageOffset === 'younger' ? 'brother_younger' : 'brother_older';
   }
-  
+
   // Con gái của Bố/Mẹ -> Chị gái hoặc Em gái của Tôi
   if ((parentRelation === 'father' || parentRelation === 'mother') && newRelation === 'daughter') {
     return ageOffset === 'younger' ? 'sister_younger' : 'sister_older';
@@ -223,7 +223,7 @@ export function isRelationRedundant(
 
 // Kiểm tra danh sách quan hệ hợp lệ
 export function getAvailableRelations(
-  nodeGender: Gender, 
+  nodeGender: Gender,
   existingChildrenRelations: RelationType[],
   parentGender?: Gender,
   nodeRelation: string = 'root',
@@ -232,7 +232,7 @@ export function getAvailableRelations(
 ): { allowed: RelationType[], warnings: Partial<Record<RelationType, string>> } {
   const allRels = Object.keys(GENDER_MAP).filter(k => k !== 'root') as RelationType[];
   const warnings: Partial<Record<RelationType, string>> = {};
-  
+
   const allowed = allRels.filter(rel => {
     // 0. Khóa tuyệt đối các quan hệ Redundant (Chồng của Vợ, Bố của Con gái...)
     if (isRelationRedundant(nodeRelation, nodeChain, rel, allTreeRelations)) {
@@ -269,14 +269,14 @@ export function getAvailableRelations(
 
 // Định dạng danh xưng theo Vùng Miền + Thứ Bậc
 export function formatRegionalLabel(
-  baseLabel: string, 
-  ordinal: Ordinal = 'none', 
+  baseLabel: string,
+  ordinal: Ordinal = 'none',
   region: Region = 'ALL',
   termObj: any = null,
   relation: RelationType | 'root' = 'root'
 ): string {
   let label = baseLabel;
-  
+
   if (termObj) {
     if (region === 'NORTH' && termObj.north) label = termObj.north;
     else if (region === 'CENTRAL' && termObj.central) label = termObj.central;

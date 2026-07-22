@@ -1,47 +1,103 @@
 {
-    "schema_version":  "1.0.0",
-    "generated_at":  "2026-07-16T00:00:00+07:00",
-    "policy":  "Bindings are manifest-driven and task/scope filtered. Absence means inactive.",
-    "bindings":  [
-                     {
-                         "skill_id":  "github-ci",
-                         "base_skill_path":  "../custom-skills/technology/github-ci/SKILL.md",
-                         "overlay_path":  "technology/github-ci/OVERLAY.md",
-                         "detected_version":  "platform-managed; actions/checkout@v6 declared",
-                         "activation_status":  "active",
-                         "activation_reason":  "Git metadata and an executable GitHub Actions workflow provide independent authoritative evidence at HIGH confidence.",
-                         "evidence":  [
-                                          ".git/config",
-                                          ".github/workflows/quality-gates.yml"
-                                      ],
-                         "applicable_packages":  [
-                                                     "repository-root"
-                                                 ],
-                         "applicable_paths":  [
-                                                  ".github/**",
-                                                  "components/instruction/**",
-                                                  "scripts/**"
-                                              ],
-                         "applicable_task_types":  [
-                                                       "ci",
-                                                       "repository-governance",
-                                                       "release-automation",
-                                                       "validation"
-                                                   ],
-                         "incompatible_scopes":  [
-                                                     "Application runtime behavior unless another technology binding is active."
-                                                 ],
-                         "required_standard_skills":  [
-                                                          "devops-release",
-                                                          "security-threat-modeling",
-                                                          "testing-quality",
-                                                          "documentation-sync"
-                                                      ],
-                         "memory_scope":  [
-                                              "instruction-system",
-                                              "template-governance"
-                                          ],
-                         "last_verified_at":  "2026-07-16T00:00:00+07:00"
-                     }
-                 ]
+    "schema_version": "1.0.0",
+    "generated_at": "2026-07-23T00:12:00+07:00",
+    "policy": "Bindings are manifest-driven and task/scope filtered. Absence means inactive.",
+    "bindings": [
+        {
+            "skill_id": "github-ci",
+            "base_skill_path": "../custom-skills/technology/github-ci/SKILL.md",
+            "overlay_path": "technology/github-ci/OVERLAY.md",
+            "detected_version": "platform-managed; actions/checkout@v4 declared",
+            "activation_status": "active",
+            "activation_reason": "Git metadata and GitHub Actions workflow present",
+            "evidence": [".git/config", ".github/workflows/quality-gates.yml"],
+            "applicable_packages": ["repository-root"],
+            "applicable_paths": [".github/**", "components/instruction/**", "scripts/**"],
+            "applicable_task_types": ["ci", "repository-governance", "release-automation", "validation"],
+            "incompatible_scopes": [],
+            "required_standard_skills": ["devops-release", "security-threat-modeling", "testing-quality", "documentation-sync"],
+            "memory_scope": ["instruction-system", "template-governance"],
+            "last_verified_at": "2026-07-23T00:12:00+07:00"
+        },
+        {
+            "skill_id": "react-typescript",
+            "base_skill_path": "../custom-skills/technology/react-typescript/SKILL.md",
+            "overlay_path": "technology/react-typescript/OVERLAY.md",
+            "detected_version": "19.2.4",
+            "activation_status": "active",
+            "activation_reason": "React 19 with TypeScript present in package.json",
+            "evidence": ["package.json"],
+            "applicable_packages": ["repository-root"],
+            "applicable_paths": ["src/**"],
+            "applicable_task_types": ["frontend", "ui", "component"],
+            "incompatible_scopes": [],
+            "required_standard_skills": ["ui-ux-production", "testing-quality"],
+            "memory_scope": ["react-components"],
+            "last_verified_at": "2026-07-23T00:12:00+07:00"
+        },
+        {
+            "skill_id": "nextjs",
+            "base_skill_path": "../custom-skills/technology/nextjs/SKILL.md",
+            "overlay_path": "technology/nextjs/OVERLAY.md",
+            "detected_version": "16.2.10",
+            "activation_status": "active",
+            "activation_reason": "Next.js App Router present in package.json",
+            "evidence": ["package.json", "next.config.mjs"],
+            "applicable_packages": ["repository-root"],
+            "applicable_paths": ["src/app/**"],
+            "applicable_task_types": ["web-app", "routing", "ssr"],
+            "incompatible_scopes": [],
+            "required_standard_skills": ["system-architecture", "ui-ux-production"],
+            "memory_scope": ["nextjs-app-router"],
+            "last_verified_at": "2026-07-23T00:12:00+07:00"
+        },
+        {
+            "skill_id": "supabase-platform",
+            "base_skill_path": "../custom-skills/technology/supabase-platform/SKILL.md",
+            "overlay_path": "technology/supabase-platform/OVERLAY.md",
+            "detected_version": "^2.110.7",
+            "activation_status": "active",
+            "activation_reason": "Supabase client present in package.json",
+            "evidence": ["package.json", "src/lib/supabase.ts"],
+            "applicable_packages": ["repository-root"],
+            "applicable_paths": ["src/lib/supabase.ts", "supabase/**"],
+            "applicable_task_types": ["backend", "database", "auth"],
+            "incompatible_scopes": [],
+            "required_standard_skills": ["backend-production-engineering"],
+            "memory_scope": ["supabase-db"],
+            "last_verified_at": "2026-07-23T00:12:00+07:00"
+        },
+        {
+            "skill_id": "postgres-supabase-db",
+            "base_skill_path": "../custom-skills/technology/postgres-supabase-db/SKILL.md",
+            "overlay_path": "technology/postgres-supabase-db/OVERLAY.md",
+            "detected_version": "^2.110.7",
+            "activation_status": "active",
+            "activation_reason": "Postgres migrations present in supabase/migrations",
+            "evidence": ["supabase/migrations/**"],
+            "applicable_packages": ["repository-root"],
+            "applicable_paths": ["supabase/migrations/**"],
+            "applicable_task_types": ["database-schema", "migration"],
+            "incompatible_scopes": [],
+            "required_standard_skills": ["backend-production-engineering"],
+            "memory_scope": ["postgres-schema"],
+            "last_verified_at": "2026-07-23T00:12:00+07:00"
+        },
+        {
+            "skill_id": "tailwind-shadcn",
+            "base_skill_path": "../custom-skills/technology/tailwind-shadcn/SKILL.md",
+            "overlay_path": "technology/tailwind-shadcn/OVERLAY.md",
+            "detected_version": "^4",
+            "activation_status": "active",
+            "activation_reason": "TailwindCSS v4 present in package.json",
+            "evidence": ["package.json", "components.json"],
+            "applicable_packages": ["repository-root"],
+            "applicable_paths": ["src/app/globals.css", "src/components/ui/**"],
+            "applicable_task_types": ["styling", "ui-design"],
+            "incompatible_scopes": [],
+            "required_standard_skills": ["ui-ux-production"],
+            "memory_scope": ["ui-styling"],
+            "last_verified_at": "2026-07-23T00:12:00+07:00"
+        }
+    ]
 }

@@ -23,7 +23,7 @@ import { Zap } from 'lucide-react';
 
 export default function DesktopLayout() {
   const { nodes: kinNodes, region, changeRegion, addRelation, autoExpandKinshipPath, editRelation, removeNode, resetTree, isLoading } = useKinshipTree();
-  
+
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [layoutDirection, setLayoutDirection] = useState<'TB' | 'LR'>('TB');
@@ -36,9 +36,9 @@ export default function DesktopLayout() {
 
   // Đóng gói logic callback cho Node
   const nodeDataFunctions = useMemo(() => ({
-    onAddRelation: async (id: string, rel: any, ageOffset: any, ordinal: any) => 
+    onAddRelation: async (id: string, rel: any, ageOffset: any, ordinal: any) =>
       await addRelation(id, rel, ageOffset, ordinal),
-    onEditRelation: async (id: string, rel: any, ageOffset: any, ordinal: any) => 
+    onEditRelation: async (id: string, rel: any, ageOffset: any, ordinal: any) =>
       await editRelation(id, rel, ageOffset, ordinal),
     onRemoveNode: (id: string) => {
       delete customPositionsRef.current[id];
@@ -65,7 +65,7 @@ export default function DesktopLayout() {
         id: kn.id,
         position: customPositionsRef.current[kn.id] || { x: 0, y: 0 },
         type: 'custom',
-        data: { 
+        data: {
           kinshipNode: kn,
           childrenRelations: childrenRels,
           allTreeRelations: allTreeRelations,
@@ -152,8 +152,8 @@ export default function DesktopLayout() {
                 key={reg.key}
                 onClick={() => changeRegion(reg.key)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                  region === reg.key 
-                    ? 'bg-white text-emerald-700 shadow-md font-bold' 
+                  region === reg.key
+                    ? 'bg-white text-emerald-700 shadow-md font-bold'
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
@@ -163,17 +163,17 @@ export default function DesktopLayout() {
             ))}
           </div>
         </div>
-        
+
         <div className="flex gap-3">
-          <button 
+          <button
             onClick={() => setLayoutDirection(prev => prev === 'TB' ? 'LR' : 'TB')}
             className="px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 shadow-sm transition-all"
             title="Đổi hướng sơ đồ"
           >
             Hướng cây: {layoutDirection === 'TB' ? 'Dọc' : 'Ngang'}
           </button>
-          
-          <button 
+
+          <button
             onClick={handleReset}
             className="px-4 py-2 bg-rose-50 text-rose-600 border border-rose-100 rounded-lg text-xs font-medium hover:bg-rose-100 shadow-sm transition-all"
           >
@@ -199,7 +199,7 @@ export default function DesktopLayout() {
           <MiniMap nodeColor="#10b981" />
           <Background gap={16} size={1} color="#cbd5e1" />
         </ReactFlow>
-        
+
         {isLoading && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-4 py-2 rounded-full text-xs font-medium shadow-xl flex items-center gap-2 z-50 animate-pulse">
             <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce"></span>

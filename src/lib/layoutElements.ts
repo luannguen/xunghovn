@@ -38,8 +38,8 @@ export const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = 'T
     const targetNode = nodes.find(n => n.id === edge.target);
     const rel = targetNode?.data.kinshipNode.relation as RelationType;
     const offset = GENERATION_OFFSET[rel] || 0;
-    
-    dagreGraph.setEdge(edge.source, edge.target, { 
+
+    dagreGraph.setEdge(edge.source, edge.target, {
       minlen: offset === 0 ? 0 : 1,
       weight: offset === 0 ? 10 : 1
     });
@@ -51,7 +51,7 @@ export const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = 'T
   nodes.forEach((node) => {
     const nodeWithPosition = dagreGraph.node(node.id);
     const gen = generationMap[node.id] || 0;
-    
+
     if (isHorizontal) {
       node.position = {
         x: gen * RANK_SPACING,

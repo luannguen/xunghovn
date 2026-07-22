@@ -59,7 +59,7 @@ export default function MobileLayout() {
                 <h2 className="text-4xl font-black text-rose-600 tracking-tight">
                   {currentNode.label}
                 </h2>
-                
+
                 {/* Vùng miền details */}
                 {currentNode.term && (
                   <div className="mt-4 flex justify-center gap-2 text-xs font-medium text-slate-500">
@@ -77,7 +77,7 @@ export default function MobileLayout() {
               <h3 className="text-base font-semibold mb-4 text-slate-700 w-full text-left">
                 Thêm mối quan hệ tiếp theo:
               </h3>
-              
+
               <div className="grid grid-cols-2 gap-3 w-full">
                 {(Object.keys(RELATION_LABELS) as RelationType[]).map((rel) => (
                   <button

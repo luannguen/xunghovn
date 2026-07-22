@@ -142,8 +142,16 @@ foreach ($token in $authorityTokens) {
     }
 }
 
+$gitDir = (Join-Path $RepositoryRoot '.git') + [IO.Path]::DirectorySeparatorChar
+$nodeModulesDir = (Join-Path $RepositoryRoot 'node_modules') + [IO.Path]::DirectorySeparatorChar
+$nextDir = (Join-Path $RepositoryRoot '.next') + [IO.Path]::DirectorySeparatorChar
+
 $linkPattern = '\[[^\]]+\]\(([^)]+)\)'
-Get-ChildItem -LiteralPath $RepositoryRoot -Recurse -File -Filter '*.md' | Where-Object { -not $_.FullName.StartsWith((Join-Path $RepositoryRoot '.git') + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase) } | ForEach-Object {
+Get-ChildItem -LiteralPath $RepositoryRoot -Recurse -File -Filter '*.md' | Where-Object {
+    -not $_.FullName.StartsWith($gitDir, [StringComparison]::OrdinalIgnoreCase) -and
+    -not $_.FullName.StartsWith($nodeModulesDir, [StringComparison]::OrdinalIgnoreCase) -and
+    -not $_.FullName.StartsWith($nextDir, [StringComparison]::OrdinalIgnoreCase)
+} | ForEach-Object {
     $file = $_
     $content = Get-Content -Raw -LiteralPath $file.FullName
     foreach ($match in [regex]::Matches($content, $linkPattern)) {

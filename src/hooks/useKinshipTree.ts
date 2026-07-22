@@ -3,9 +3,9 @@ import { getKinshipTerm, RegionalTerm } from '@/services/kinshipService';
 import { GENDER_MAP, Ordinal, AgeOffset, Region, formatRegionalLabel, resolveEquivalentRelation, reduceKinshipChain } from '@/lib/kinshipLogic';
 import { KinshipPathStep } from '@/lib/kinshipExpander';
 
-export type RelationType = 
-  | 'father' | 'mother' | 'husband' | 'wife' 
-  | 'son' | 'daughter' | 'brother_older' | 'brother_younger' 
+export type RelationType =
+  | 'father' | 'mother' | 'husband' | 'wife'
+  | 'son' | 'daughter' | 'brother_older' | 'brother_younger'
   | 'sister_older' | 'sister_younger';
 
 export const RELATION_LABELS: Record<RelationType, string> = {
@@ -22,8 +22,8 @@ export const RELATION_LABELS: Record<RelationType, string> = {
 };
 
 const DIRECT_RELATIONS: Set<string> = new Set([
-  'father', 'mother', 'husband', 'wife', 
-  'son', 'daughter', 'brother_older', 'brother_younger', 
+  'father', 'mother', 'husband', 'wife',
+  'son', 'daughter', 'brother_older', 'brother_younger',
   'sister_older', 'sister_younger'
 ]);
 
@@ -47,8 +47,8 @@ export function useKinshipTree() {
   const [isLoading, setIsLoading] = useState(false);
 
   const addRelation = useCallback(async (
-    parentId: string, 
-    requestedRelation: RelationType, 
+    parentId: string,
+    requestedRelation: RelationType,
     ageOffset: AgeOffset = 'older',
     ordinal: Ordinal = 'none'
   ) => {
@@ -130,13 +130,13 @@ export function useKinshipTree() {
   }, [nodes, addRelation]);
 
   const editRelation = useCallback(async (
-    nodeId: string, 
+    nodeId: string,
     newRelation: RelationType,
     ageOffset: AgeOffset = 'older',
     ordinal: Ordinal = 'none'
   ) => {
     setIsLoading(true);
-    
+
     let tempNodes = [...nodes];
     const targetIdx = tempNodes.findIndex(n => n.id === nodeId);
     if (targetIdx === -1) {
@@ -147,18 +147,18 @@ export function useKinshipTree() {
     const parent = tempNodes.find(n => n.id === tempNodes[targetIdx].parentId);
     const resolvedRel = parent ? resolveEquivalentRelation(parent.relation, newRelation, ageOffset) : newRelation;
 
-    tempNodes[targetIdx] = { 
-      ...tempNodes[targetIdx], 
+    tempNodes[targetIdx] = {
+      ...tempNodes[targetIdx],
       relation: resolvedRel,
       ordinal,
-      ageOffset 
+      ageOffset
     };
 
     const updateNodeAndChildren = async (currentId: string) => {
       const idx = tempNodes.findIndex(n => n.id === currentId);
       if (idx === -1) return;
       const node = { ...tempNodes[idx] };
-      
+
       if (node.id === 'root' || !node.parentId) {
          node.chain = '';
       } else {
@@ -166,13 +166,13 @@ export function useKinshipTree() {
          const rawChain = p?.chain ? `${p.chain}.${node.relation}` : node.relation;
          node.chain = reduceKinshipChain(rawChain);
       }
-      
+
       const term = await getKinshipTerm(node.chain);
       node.term = term;
 
       const pNode = tempNodes.find(n => n.id === node.parentId);
       const defaultLabel = RELATION_LABELS[node.relation as RelationType] || 'Tôi';
-      
+
       let fallbackBase = defaultLabel;
       if (pNode && pNode.id !== 'root' && !DIRECT_RELATIONS.has(node.relation) && !DIRECT_RELATIONS.has(node.chain)) {
         fallbackBase = `${defaultLabel} của ${pNode.label}`;
@@ -181,7 +181,7 @@ export function useKinshipTree() {
       const rawLabel = term ? term.north : fallbackBase;
       node.label = formatRegionalLabel(rawLabel, node.ordinal || 'none', region, term, node.relation);
       node.gender = GENDER_MAP[node.relation as RelationType];
-      
+
       tempNodes[idx] = node;
 
       const children = tempNodes.filter(n => n.parentId === currentId);
