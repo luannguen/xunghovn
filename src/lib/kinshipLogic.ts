@@ -1,8 +1,80 @@
 import { RelationType } from '@/hooks/useKinshipTree';
 
 export type Gender = 'MALE' | 'FEMALE' | 'UNKNOWN';
+export type Region = 'ALL' | 'NORTH' | 'CENTRAL' | 'SOUTH';
 
-// Bản đồ Giới tính của từng loại quan hệ
+export type Ordinal = 
+  | 'none' 
+  | 'first' 
+  | 'second' 
+  | 'third' 
+  | 'fourth' 
+  | 'fifth' 
+  | 'sixth' 
+  | 'seventh' 
+  | 'eighth' 
+  | 'ninth' 
+  | 'youngest';
+
+export type AgeOffset = 'older' | 'younger' | 'same';
+
+// Nhãn Thứ bậc theo từng Vùng miền
+export const ORDINAL_MAP: Record<Region, Record<Ordinal, string>> = {
+  ALL: {
+    none: '',
+    first: 'Cả / Hai',
+    second: 'Ba',
+    third: 'Tư',
+    fourth: 'Năm',
+    fifth: 'Sáu',
+    sixth: 'Bảy',
+    seventh: 'Tám',
+    eighth: 'Chín',
+    ninth: 'Mười',
+    youngest: 'Út',
+  },
+  NORTH: {
+    none: '',
+    first: 'Cả',
+    second: 'Hai',
+    third: 'Ba',
+    fourth: 'Tư',
+    fifth: 'Năm',
+    sixth: 'Sáu',
+    seventh: 'Bảy',
+    eighth: 'Tám',
+    ninth: 'Chín',
+    youngest: 'Út',
+  },
+  SOUTH: {
+    none: '',
+    first: 'Hai', // Miền Nam không gọi là Cả, con đầu gọi là Anh Hai / Chị Hai
+    second: 'Ba',
+    third: 'Tư',
+    fourth: 'Năm',
+    fifth: 'Sáu',
+    sixth: 'Bảy',
+    seventh: 'Tám',
+    eighth: 'Chín',
+    ninth: 'Mười',
+    youngest: 'Út',
+  },
+  CENTRAL: {
+    none: '',
+    first: 'Hai',
+    second: 'Ba',
+    third: 'Tư',
+    fourth: 'Năm',
+    fifth: 'Sáu',
+    sixth: 'Bảy',
+    seventh: 'Tám',
+    eighth: 'Chín',
+    ninth: 'Mười',
+    youngest: 'Út',
+  }
+};
+
+// Bản đồ Giới tính
 export const GENDER_MAP: Record<RelationType | 'root', Gender> = {
   root: 'UNKNOWN',
   father: 'MALE',
@@ -17,7 +89,7 @@ export const GENDER_MAP: Record<RelationType | 'root', Gender> = {
   sister_younger: 'FEMALE',
 };
 
-// Trọng số thế hệ: Bố mẹ (-1, lùi về trước), Con cái (+1, thế hệ sau), Anh chị em (0, ngang hàng)
+// Trọng số thế hệ
 export const GENERATION_OFFSET: Record<RelationType | 'root', number> = {
   root: 0,
   father: -1,
@@ -32,7 +104,26 @@ export const GENERATION_OFFSET: Record<RelationType | 'root', number> = {
   daughter: 1,
 };
 
-// Hàm kiểm tra các nút được phép thêm dựa trên ràng buộc
+// Động cơ Suy luận Quan hệ Đồng đương (Equivalence Chain Reducer)
+export function resolveEquivalentRelation(
+  parentRelation: string,
+  newRelation: RelationType,
+  ageOffset: AgeOffset = 'older'
+): RelationType {
+  // Con trai của Bố/Mẹ -> Anh trai hoặc Em trai của Tôi
+  if ((parentRelation === 'father' || parentRelation === 'mother') && newRelation === 'son') {
+    return ageOffset === 'younger' ? 'brother_younger' : 'brother_older';
+  }
+  
+  // Con gái của Bố/Mẹ -> Chị gái hoặc Em gái của Tôi
+  if ((parentRelation === 'father' || parentRelation === 'mother') && newRelation === 'daughter') {
+    return ageOffset === 'younger' ? 'sister_younger' : 'sister_older';
+  }
+
+  return newRelation;
+}
+
+// Kiểm tra danh sách quan hệ hợp lệ
 export function getAvailableRelations(
   nodeGender: Gender, 
   existingChildrenRelations: RelationType[]
@@ -41,12 +132,12 @@ export function getAvailableRelations(
   const warnings: Partial<Record<RelationType, string>> = {};
   
   const allowed = allRels.filter(rel => {
-    // 1. Quy tắc Độc bản: Mỗi người chỉ có tối đa 1 Bố ruột, 1 Mẹ ruột
+    // Quy tắc Độc bản: Chỉ có tối đa 1 Bố, 1 Mẹ trực tiếp
     if ((rel === 'father' || rel === 'mother') && existingChildrenRelations.includes(rel)) {
-      return false; // Ẩn luôn nút Bố/Mẹ nếu đã thêm
+      return false;
     }
 
-    // 2. Quy tắc Giới tính Truyền thống (Cảnh báo LGBT)
+    // Quy tắc Giới tính (Cảnh báo LGBT)
     if (nodeGender === 'MALE' && rel === 'husband') {
       warnings[rel] = 'LGBT';
     }
@@ -54,14 +145,32 @@ export function getAvailableRelations(
       warnings[rel] = 'LGBT';
     }
 
-    return true; // Vẫn cho phép hiện trong mảng allowed, nhưng UI sẽ check warnings để hiện Modal
+    return true;
   });
 
   return { allowed, warnings };
 }
 
-// Hàm rút gọn chuỗi quan hệ để tránh dài ngoằng và tăng tỷ lệ cache (Chưa cần chạy logic phức tạp, đẩy qua DB xử lý)
-export function reduceKinshipChain(chain: string): string {
-  // Tương lai có thể map `father.wife` -> `stepmother` ở tầng App nếu muốn
-  return chain;
+// Định dạng danh xưng theo Vùng Miền + Thứ Bậc
+export function formatRegionalLabel(
+  baseLabel: string, 
+  ordinal: Ordinal = 'none', 
+  region: Region = 'ALL',
+  termObj: any = null
+): string {
+  let label = baseLabel;
+  
+  // Nếu có dữ liệu từ DB theo miền
+  if (termObj) {
+    if (region === 'NORTH' && termObj.north) label = termObj.north;
+    else if (region === 'CENTRAL' && termObj.central) label = termObj.central;
+    else if (region === 'SOUTH' && termObj.south) label = termObj.south;
+  }
+
+  const ordinalText = ORDINAL_MAP[region][ordinal];
+  if (ordinalText) {
+    return `${label} ${ordinalText}`;
+  }
+
+  return label;
 }

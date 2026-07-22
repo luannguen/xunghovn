@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { getKinshipTerm, RegionalTerm } from '@/services/kinshipService';
-import { GENDER_MAP } from '@/lib/kinshipLogic';
+import { GENDER_MAP, Ordinal, AgeOffset, Region, formatRegionalLabel, resolveEquivalentRelation } from '@/lib/kinshipLogic';
 
 export type RelationType = 
   | 'father' | 'mother' | 'husband' | 'wife' 
@@ -28,58 +28,79 @@ export type KinshipNode = {
   chain: string;
   term: RegionalTerm | null;
   gender: 'MALE' | 'FEMALE' | 'UNKNOWN';
+  ordinal?: Ordinal;
+  ageOffset?: AgeOffset;
 };
 
 export function useKinshipTree() {
   const [nodes, setNodes] = useState<KinshipNode[]>([
-    { id: 'root', parentId: null, relation: 'root', label: 'Tôi', chain: '', term: null, gender: 'UNKNOWN' }
+    { id: 'root', parentId: null, relation: 'root', label: 'Tôi', chain: '', term: null, gender: 'UNKNOWN', ordinal: 'none' }
   ]);
+  const [region, setRegion] = useState<Region>('ALL');
   const [isLoading, setIsLoading] = useState(false);
 
-  const addRelation = useCallback(async (parentId: string, newRelation: string) => {
+  const addRelation = useCallback(async (
+    parentId: string, 
+    requestedRelation: RelationType, 
+    ageOffset: AgeOffset = 'older',
+    ordinal: Ordinal = 'none'
+  ) => {
     setIsLoading(true);
     setNodes(prevNodes => {
       const parentNode = prevNodes.find(n => n.id === parentId);
       if (!parentNode) return prevNodes;
 
-      const newChain = parentNode.chain ? `${parentNode.chain}.${newRelation}` : newRelation;
-      const newNodeId = `${parentId}-${newRelation}-${Date.now()}`;
+      // 1. Tự động quy đổi quan hệ tương đương (VD: Con trai của Bố -> Anh/Em trai)
+      const resolvedRel = resolveEquivalentRelation(parentNode.relation, requestedRelation, ageOffset);
+
+      const newChain = parentNode.chain ? `${parentNode.chain}.${resolvedRel}` : resolvedRel;
+      const newNodeId = `${parentId}-${resolvedRel}-${Date.now()}`;
       
-      const fallbackLabel = parentNode.id !== 'root' 
-        ? `${RELATION_LABELS[newRelation as RelationType]} của ${parentNode.label}` 
-        : RELATION_LABELS[newRelation as RelationType];
+      const defaultLabel = RELATION_LABELS[resolvedRel];
+      const fallbackBase = parentNode.id !== 'root' 
+        ? `${defaultLabel} của ${parentNode.label}` 
+        : defaultLabel;
 
-      const newGender = GENDER_MAP[newRelation as RelationType];
+      const newGender = GENDER_MAP[resolvedRel];
 
-      // Khởi tạo node tạm thời chưa có danh xưng
+      // Khởi tạo node tạm thời
       const newNode: KinshipNode = {
         id: newNodeId,
         parentId,
-        relation: newRelation,
+        relation: resolvedRel,
         label: 'Đang tính...',
         chain: newChain,
         term: null,
         gender: newGender,
+        ordinal,
+        ageOffset
       };
 
-      // Chạy tính toán async bên ngoài setNodes
+      // Query database
       getKinshipTerm(newChain).then(term => {
-        setNodes(current => current.map(n => 
-          n.id === newNodeId 
-            ? { ...n, term, label: term ? term.north : fallbackLabel } 
-            : n
-        ));
+        setNodes(current => current.map(n => {
+          if (n.id === newNodeId) {
+            const rawLabel = term ? term.north : fallbackBase;
+            const formattedLabel = formatRegionalLabel(rawLabel, ordinal, region, term);
+            return { ...n, term, label: formattedLabel };
+          }
+          return n;
+        }));
         setIsLoading(false);
       });
 
       return [...prevNodes, newNode];
     });
-  }, []);
+  }, [region]);
 
-  const editRelation = useCallback(async (nodeId: string, newRelation: RelationType) => {
+  const editRelation = useCallback(async (
+    nodeId: string, 
+    newRelation: RelationType,
+    ageOffset: AgeOffset = 'older',
+    ordinal: Ordinal = 'none'
+  ) => {
     setIsLoading(true);
     
-    // Tạo mảng mới để tính toán dây chuyền
     let tempNodes = [...nodes];
     const targetIdx = tempNodes.findIndex(n => n.id === nodeId);
     if (targetIdx === -1) {
@@ -87,10 +108,16 @@ export function useKinshipTree() {
       return;
     }
 
-    // Đổi relation cho node mục tiêu
-    tempNodes[targetIdx] = { ...tempNodes[targetIdx], relation: newRelation };
+    const parent = tempNodes.find(n => n.id === tempNodes[targetIdx].parentId);
+    const resolvedRel = parent ? resolveEquivalentRelation(parent.relation, newRelation, ageOffset) : newRelation;
 
-    // Đệ quy cập nhật chain và gửi request cho nhánh
+    tempNodes[targetIdx] = { 
+      ...tempNodes[targetIdx], 
+      relation: resolvedRel,
+      ordinal,
+      ageOffset 
+    };
+
     const updateNodeAndChildren = async (currentId: string) => {
       const idx = tempNodes.findIndex(n => n.id === currentId);
       if (idx === -1) return;
@@ -99,24 +126,24 @@ export function useKinshipTree() {
       if (node.id === 'root' || !node.parentId) {
          node.chain = '';
       } else {
-         const parent = tempNodes.find(n => n.id === node.parentId);
-         node.chain = parent?.chain ? `${parent.chain}.${node.relation}` : node.relation;
+         const p = tempNodes.find(n => n.id === node.parentId);
+         node.chain = p?.chain ? `${p.chain}.${node.relation}` : node.relation;
       }
       
-      // Fetch new term
       const term = await getKinshipTerm(node.chain);
       node.term = term;
 
-      const fallbackLabel = parent && parent.id !== 'root' 
-        ? `${RELATION_LABELS[node.relation as RelationType]} của ${parent.label}` 
-        : RELATION_LABELS[node.relation as RelationType];
+      const pNode = tempNodes.find(n => n.id === node.parentId);
+      const fallbackBase = pNode && pNode.id !== 'root' 
+        ? `${RELATION_LABELS[node.relation as RelationType]} của ${pNode.label}` 
+        : (node.relation === 'root' ? 'Tôi' : RELATION_LABELS[node.relation as RelationType]);
 
-      node.label = term ? term.north : (node.relation === 'root' ? 'Tôi' : fallbackLabel);
+      const rawLabel = term ? term.north : fallbackBase;
+      node.label = formatRegionalLabel(rawLabel, node.ordinal || 'none', region, term);
       node.gender = GENDER_MAP[node.relation as RelationType];
       
       tempNodes[idx] = node;
 
-      // Tìm và đệ quy cập nhật các node con
       const children = tempNodes.filter(n => n.parentId === currentId);
       for (const child of children) {
         await updateNodeAndChildren(child.id);
@@ -126,13 +153,11 @@ export function useKinshipTree() {
     await updateNodeAndChildren(nodeId);
     setNodes(tempNodes);
     setIsLoading(false);
-  }, [nodes]);
+  }, [nodes, region]);
 
   const removeNode = useCallback((id: string) => {
     setNodes(prev => {
-      // Đệ quy tìm tất cả ID của node con cháu cần xoá
       const idsToRemove = new Set<string>([id]);
-      
       let added = true;
       while (added) {
         added = false;
@@ -148,11 +173,29 @@ export function useKinshipTree() {
   }, []);
 
   const resetTree = useCallback(() => {
-    setNodes([{ id: 'root', parentId: null, relation: 'root', label: 'Tôi', chain: '', term: null, gender: 'UNKNOWN' }]);
+    setNodes([{ id: 'root', parentId: null, relation: 'root', label: 'Tôi', chain: '', term: null, gender: 'UNKNOWN', ordinal: 'none' }]);
+  }, []);
+
+  // Cập nhật lại toàn bộ nhãn hiển thị khi chuyển đổi Vùng miền
+  const changeRegion = useCallback((newRegion: Region) => {
+    setRegion(newRegion);
+    setNodes(prev => prev.map(node => {
+      if (node.id === 'root') return node;
+      const parent = prev.find(n => n.id === node.parentId);
+      const fallbackBase = parent && parent.id !== 'root' 
+        ? `${RELATION_LABELS[node.relation as RelationType]} của ${parent.label}` 
+        : RELATION_LABELS[node.relation as RelationType];
+
+      const rawLabel = node.term ? node.term.north : fallbackBase;
+      const formattedLabel = formatRegionalLabel(rawLabel, node.ordinal || 'none', newRegion, node.term);
+      return { ...node, label: formattedLabel };
+    }));
   }, []);
 
   return {
     nodes,
+    region,
+    changeRegion,
     addRelation,
     editRelation,
     removeNode,
