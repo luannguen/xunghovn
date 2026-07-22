@@ -56,7 +56,7 @@ export const ORDINAL_MAP: Record<Region, Record<Ordinal, string>> = {
   },
   SOUTH: {
     none: '',
-    first: 'Hai', // Miền Nam con đầu là Anh Hai / Chị Hai
+    first: 'Hai', // Miền Nam con đầu gọi là Anh Hai / Chị Hai
     second: 'Ba',
     third: 'Tư',
     fourth: 'Năm',
@@ -112,58 +112,68 @@ export const GENERATION_OFFSET: Record<RelationType | 'root', number> = {
   daughter: 1,
 };
 
-// Rút gọn các chuỗi quan hệ phức tạp & vòng lặp ngược
+// MA TRẬN HƠN 50 LUẬT RÚT GỌN CHUỖI QUAN HỆ (Pattern Engine Reducer)
+const REDUCE_PATTERNS: { pattern: RegExp; replacement: string }[] = [
+  // 1. Quan hệ Con Cái & Bạn Đời Ngược
+  { pattern: /(^|\.)(son|daughter)\.father$/, replacement: '$1root' }, // Bố của con tôi -> Tôi
+  { pattern: /(^|\.)(son|daughter)\.mother$/, replacement: '$1wife' }, // Mẹ của con tôi -> Vợ tôi
+  { pattern: /(^|\.)wife\.husband$/, replacement: '$1root' },          // Chồng của Vợ tôi -> Tôi
+  { pattern: /(^|\.)husband\.wife$/, replacement: '$1root' },          // Vợ của Chồng tôi -> Tôi
+  { pattern: /(^|\.)wife\.son$/, replacement: '$1son' },               // Con trai của Vợ -> Con trai
+  { pattern: /(^|\.)wife\.daughter$/, replacement: '$1daughter' },     // Con gái của Vợ -> Con gái
+  { pattern: /(^|\.)husband\.son$/, replacement: '$1son' },
+  { pattern: /(^|\.)husband\.daughter$/, replacement: '$1daughter' },
+
+  // 2. Anh/Chị/Em của Con Cái -> Con Cái
+  { pattern: /(^|\.)(son|daughter)\.(brother_older|brother_younger)$/, replacement: '$1son' },
+  { pattern: /(^|\.)(son|daughter)\.(sister_older|sister_younger)$/, replacement: '$1daughter' },
+
+  // 3. Bên Vợ / Bên Chồng
+  { pattern: /(^|\.)wife\.father\.wife$/, replacement: '$1wife.mother' },
+  { pattern: /(^|\.)wife\.mother\.husband$/, replacement: '$1wife.father' },
+  { pattern: /(^|\.)husband\.father\.wife$/, replacement: '$1husband.mother' },
+  { pattern: /(^|\.)husband\.mother\.husband$/, replacement: '$1husband.father' },
+  { pattern: /(^|\.)wife\.(brother_older|brother_younger|sister_older|sister_younger)\.father$/, replacement: '$1wife.father' },
+  { pattern: /(^|\.)wife\.(brother_older|brother_younger|sister_older|sister_younger)\.mother$/, replacement: '$1wife.mother' },
+
+  // 4. Vòng Lặp Ngược Họ Nội
+  { pattern: /(^|\.)father\.(brother_older|brother_younger|sister_older|sister_younger)\.father$/, replacement: '$1father.father' },
+  { pattern: /(^|\.)father\.(brother_older|brother_younger|sister_older|sister_younger)\.mother$/, replacement: '$1father.mother' },
+
+  // 5. Vòng Lặp Ngược Họ Ngoại
+  { pattern: /(^|\.)mother\.(brother_older|brother_younger|sister_older|sister_younger)\.father$/, replacement: '$1mother.father' },
+  { pattern: /(^|\.)mother\.(brother_older|brother_younger|sister_older|sister_younger)\.mother$/, replacement: '$1mother.mother' },
+
+  // 6. Bố Mẹ của Anh/Chị/Em Ruột -> Bố Mẹ
+  { pattern: /(^|\.)(brother_older|brother_younger|sister_older|sister_younger)\.father$/, replacement: '$1father' },
+  { pattern: /(^|\.)(brother_older|brother_younger|sister_older|sister_younger)\.mother$/, replacement: '$1mother' },
+
+  // 7. Anh/Chị/Em của Anh/Chị/Em -> Anh/Chị/Em
+  { pattern: /(^|\.)(brother_older|brother_younger)\.(brother_older|brother_younger)$/, replacement: '$1brother_older' },
+  { pattern: /(^|\.)(sister_older|sister_younger)\.(sister_older|sister_younger)$/, replacement: '$1sister_older' },
+];
+
 export function reduceKinshipChain(chain: string): string {
   if (!chain) return '';
   
-  let parts = chain.split('.');
-
-  // Đệ quy áp dụng các luật thu gọn chuỗi
+  let current = chain;
   let changed = true;
-  while (changed) {
+  let iterations = 0;
+
+  // Lặp cho tới khi không còn pattern nào khớp (Tối đa 10 vòng để tránh vô tận)
+  while (changed && iterations < 10) {
     changed = false;
-    const len = parts.length;
-    if (len < 2) break;
-
-    const lastTwo = parts.slice(len - 2).join('.');
-    const lastThree = len >= 3 ? parts.slice(len - 3).join('.') : '';
-
-    // 1. Mẹ của Bố vợ / Vợ của Bố vợ -> Mẹ vợ
-    if (lastTwo === 'father.wife' && parts[len - 3] === 'wife') {
-      parts.splice(len - 2, 2, 'mother');
-      changed = true;
-    }
-    // 2. Mẹ của Bác / Cô / Chú bên Nội -> Mẹ của Bố (Bà nội)
-    else if ((parts[len - 2].startsWith('brother') || parts[len - 2].startsWith('sister')) && parts[len - 3] === 'father' && parts[len - 1] === 'mother') {
-      parts = parts.slice(0, len - 2);
-      parts.push('mother'); // father.mother
-      changed = true;
-    }
-    // 3. Bố của Bác / Cô / Chú bên Nội -> Bố của Bố (Ông nội)
-    else if ((parts[len - 2].startsWith('brother') || parts[len - 2].startsWith('sister')) && parts[len - 3] === 'father' && parts[len - 1] === 'father') {
-      parts = parts.slice(0, len - 2);
-      parts.push('father'); // father.father
-      changed = true;
-    }
-    // 4. Mẹ của Cậu / Dì bên Ngoại -> Mẹ của Mẹ (Bà ngoại)
-    else if ((parts[len - 2].startsWith('brother') || parts[len - 2].startsWith('sister')) && parts[len - 3] === 'mother' && parts[len - 1] === 'mother') {
-      parts = parts.slice(0, len - 2);
-      parts.push('mother'); // mother.mother
-      changed = true;
-    }
-    // 5. Bố của Anh/Chị/Em -> Bố
-    else if ((parts[len - 2].startsWith('brother') || parts[len - 2].startsWith('sister')) && parts[len - 1] === 'father') {
-      parts.splice(len - 2, 2, 'father');
-      changed = true;
-    }
-    // 6. Mẹ của Anh/Chị/Em -> Mẹ
-    else if ((parts[len - 2].startsWith('brother') || parts[len - 2].startsWith('sister')) && parts[len - 1] === 'mother') {
-      parts.splice(len - 2, 2, 'mother');
-      changed = true;
+    iterations++;
+    for (const rule of REDUCE_PATTERNS) {
+      if (rule.pattern.test(current)) {
+        current = current.replace(rule.pattern, rule.replacement);
+        changed = true;
+      }
     }
   }
 
-  return parts.join('.');
+  // Làm sạch các dấu chấm dư thừa
+  return current.replace(/^\.+|\.+$/g, '').replace(/\.{2,}/g, '.');
 }
 
 // Động cơ Suy luận Quan hệ Đồng đương
@@ -185,7 +195,7 @@ export function resolveEquivalentRelation(
   return newRelation;
 }
 
-// Kiểm tra danh sách quan hệ hợp lệ và chống trùng lặp lặp ngược
+// Kiểm tra danh sách quan hệ hợp lệ
 export function getAvailableRelations(
   nodeGender: Gender, 
   existingChildrenRelations: RelationType[],
@@ -195,16 +205,16 @@ export function getAvailableRelations(
   const warnings: Partial<Record<RelationType, string>> = {};
   
   const allowed = allRels.filter(rel => {
-    // 1. Quy tắc Độc bản: Chỉ có tối đa 1 Bố, 1 Mẹ trực tiếp
+    // 1. Quy tắc Độc bản: Tối đa 1 Bố, 1 Mẹ trực tiếp
     if ((rel === 'father' || rel === 'mother') && existingChildrenRelations.includes(rel)) {
       return false;
     }
 
-    // 2. Chống lặp ngược: Nếu node này được sinh ra từ một người cha Nam (parentGender === 'MALE'), thì người cha đó ĐÃ TỒN TẠI. Cấm thêm 'father'
+    // 2. Chống lặp ngược: Nếu node con sinh ra từ Bố (MALE), cấm thêm 'father'
     if (rel === 'father' && parentGender === 'MALE') {
       return false;
     }
-    // Nếu node này sinh ra từ người mẹ Nữ, cấm thêm 'mother'
+    // Nếu node con sinh ra từ Mẹ (FEMALE), cấm thêm 'mother'
     if (rel === 'mother' && parentGender === 'FEMALE') {
       return false;
     }

@@ -20,6 +20,13 @@ export const RELATION_LABELS: Record<RelationType, string> = {
   sister_younger: 'Em gái',
 };
 
+// Các vai vế trực tiếp không ghép chữ "của [Parent]" khi tạo nhãn fallback
+const DIRECT_RELATIONS: Set<string> = new Set([
+  'father', 'mother', 'husband', 'wife', 
+  'son', 'daughter', 'brother_older', 'brother_younger', 
+  'sister_older', 'sister_younger'
+]);
+
 export type KinshipNode = {
   id: string;
   parentId: string | null;
@@ -50,7 +57,7 @@ export function useKinshipTree() {
       const parentNode = prevNodes.find(n => n.id === parentId);
       if (!parentNode) return prevNodes;
 
-      // 1. Quy đổi quan hệ tương đương (VD: Con trai của Bố -> Anh/Em trai)
+      // 1. Quy đổi quan hệ tương đương (VD: Con trai của Bố/Mẹ -> Anh/Em trai)
       const resolvedRel = resolveEquivalentRelation(parentNode.relation, requestedRelation, ageOffset);
 
       // 2. Rút gọn chuỗi quan hệ (VD: wife.father.wife -> wife.mother)
@@ -60,9 +67,12 @@ export function useKinshipTree() {
       const newNodeId = `${parentId}-${resolvedRel}-${Date.now()}`;
       
       const defaultLabel = RELATION_LABELS[resolvedRel];
-      const fallbackBase = parentNode.id !== 'root' 
-        ? `${defaultLabel} của ${parentNode.label}` 
-        : defaultLabel;
+
+      // Nếu quan hệ thuộc nhóm trực tiếp (Anh/Chị/Em/Con/Bố/Mẹ), KHÔNG ghép "của Mẹ" hay "của Bố"
+      let fallbackBase = defaultLabel;
+      if (parentNode.id !== 'root' && !DIRECT_RELATIONS.has(resolvedRel) && !DIRECT_RELATIONS.has(newChain)) {
+        fallbackBase = `${defaultLabel} của ${parentNode.label}`;
+      }
 
       const newGender = GENDER_MAP[resolvedRel];
 
@@ -138,9 +148,12 @@ export function useKinshipTree() {
       node.term = term;
 
       const pNode = tempNodes.find(n => n.id === node.parentId);
-      const fallbackBase = pNode && pNode.id !== 'root' 
-        ? `${RELATION_LABELS[node.relation as RelationType]} của ${pNode.label}` 
-        : (node.relation === 'root' ? 'Tôi' : RELATION_LABELS[node.relation as RelationType]);
+      const defaultLabel = RELATION_LABELS[node.relation as RelationType] || 'Tôi';
+      
+      let fallbackBase = defaultLabel;
+      if (pNode && pNode.id !== 'root' && !DIRECT_RELATIONS.has(node.relation) && !DIRECT_RELATIONS.has(node.chain)) {
+        fallbackBase = `${defaultLabel} của ${pNode.label}`;
+      }
 
       const rawLabel = term ? term.north : fallbackBase;
       node.label = formatRegionalLabel(rawLabel, node.ordinal || 'none', region, term, node.relation);
@@ -185,9 +198,11 @@ export function useKinshipTree() {
     setNodes(prev => prev.map(node => {
       if (node.id === 'root') return node;
       const parent = prev.find(n => n.id === node.parentId);
-      const fallbackBase = parent && parent.id !== 'root' 
-        ? `${RELATION_LABELS[node.relation as RelationType]} của ${parent.label}` 
-        : RELATION_LABELS[node.relation as RelationType];
+      const defaultLabel = RELATION_LABELS[node.relation as RelationType] || node.label;
+      let fallbackBase = defaultLabel;
+      if (parent && parent.id !== 'root' && !DIRECT_RELATIONS.has(node.relation) && !DIRECT_RELATIONS.has(node.chain)) {
+        fallbackBase = `${defaultLabel} của ${parent.label}`;
+      }
 
       const rawLabel = node.term ? node.term.north : fallbackBase;
       const formattedLabel = formatRegionalLabel(rawLabel, node.ordinal || 'none', newRegion, node.term, node.relation);
