@@ -18,8 +18,9 @@ import { useKinshipTree } from '@/hooks/useKinshipTree';
 import { getLayoutedElements } from '@/lib/layoutElements';
 import { CustomKinshipNode } from './CustomKinshipNode';
 import { QuickAddKinshipModal } from './QuickAddKinshipModal';
+import { KinshipDictionaryModal } from './KinshipDictionaryModal';
 import { Region, Ordinal } from '@/lib/kinshipLogic';
-import { Zap } from 'lucide-react';
+import { Zap, BookOpen, Download } from 'lucide-react';
 
 export default function DesktopLayout() {
   const { nodes: kinNodes, region, changeRegion, addRelation, autoExpandKinshipPath, editRelation, removeNode, resetTree, isLoading } = useKinshipTree();
@@ -28,6 +29,7 @@ export default function DesktopLayout() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [layoutDirection, setLayoutDirection] = useState<'TB' | 'LR'>('TB');
   const [isQuickAddOpen, setIsQuickAddOpen] = useState<boolean>(false);
+  const [isDictionaryOpen, setIsDictionaryOpen] = useState<boolean>(false);
 
   // Ref lưu trữ toạ độ kéo-thả thủ công của người dùng
   const customPositionsRef = useRef<Record<string, { x: number; y: number }>>({});
@@ -114,6 +116,16 @@ export default function DesktopLayout() {
     autoExpandKinshipPath(steps, ordinal);
   };
 
+  const handleExportJSON = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(kinNodes, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `gia-pha-xung-ho-vn-${Date.now()}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
+
   const REGION_OPTIONS: { key: Region; label: string; icon: string }[] = [
     { key: 'ALL', label: 'Toàn Quốc', icon: '🌐' },
     { key: 'NORTH', label: 'Miền Bắc', icon: '🏛️' },
@@ -136,13 +148,21 @@ export default function DesktopLayout() {
         </div>
 
         {/* Action Center */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           {/* Quick Add Button */}
           <button
             onClick={() => setIsQuickAddOpen(true)}
             className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 active:scale-95"
           >
             <Zap size={16} /> ⚡ Thêm Nhanh Vai Vế
+          </button>
+
+          {/* Dictionary Lookup Button */}
+          <button
+            onClick={() => setIsDictionaryOpen(true)}
+            className="px-4 py-2 bg-white border border-slate-200 text-emerald-700 hover:bg-emerald-50 rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 active:scale-95"
+          >
+            <BookOpen size={16} /> 📖 Từ Điển Tra Cứu
           </button>
 
           {/* Region Switcher */}
@@ -164,20 +184,28 @@ export default function DesktopLayout() {
           </div>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex gap-2">
+          <button
+            onClick={handleExportJSON}
+            className="px-3.5 py-2 bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-200 transition-all flex items-center gap-1"
+            title="Tải sơ đồ gia phả JSON"
+          >
+            <Download size={14} /> Xuất Sơ Đồ
+          </button>
+
           <button
             onClick={() => setLayoutDirection(prev => prev === 'TB' ? 'LR' : 'TB')}
-            className="px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 shadow-sm transition-all"
+            className="px-3.5 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 shadow-sm transition-all"
             title="Đổi hướng sơ đồ"
           >
-            Hướng cây: {layoutDirection === 'TB' ? 'Dọc' : 'Ngang'}
+            Hướng: {layoutDirection === 'TB' ? 'Dọc' : 'Ngang'}
           </button>
 
           <button
             onClick={handleReset}
-            className="px-4 py-2 bg-rose-50 text-rose-600 border border-rose-100 rounded-lg text-xs font-medium hover:bg-rose-100 shadow-sm transition-all"
+            className="px-3.5 py-2 bg-rose-50 text-rose-600 border border-rose-100 rounded-lg text-xs font-medium hover:bg-rose-100 shadow-sm transition-all"
           >
-            Làm mới sơ đồ
+            Làm mới
           </button>
         </div>
       </header>
@@ -203,7 +231,7 @@ export default function DesktopLayout() {
         {isLoading && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-4 py-2 rounded-full text-xs font-medium shadow-xl flex items-center gap-2 z-50 animate-pulse">
             <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce"></span>
-            Đang tự động sinh nhánh cây gia phả...
+            Đang tự động tính toán xưng hô...
           </div>
         )}
       </main>
@@ -213,6 +241,12 @@ export default function DesktopLayout() {
         isOpen={isQuickAddOpen}
         onClose={() => setIsQuickAddOpen(false)}
         onConfirmExpand={handleConfirmQuickExpand}
+      />
+
+      {/* Kinship Dictionary Modal */}
+      <KinshipDictionaryModal
+        isOpen={isDictionaryOpen}
+        onClose={() => setIsDictionaryOpen(false)}
       />
     </div>
   );
